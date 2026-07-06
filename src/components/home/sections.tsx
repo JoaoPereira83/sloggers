@@ -4,7 +4,7 @@ import { useState } from "react";
 import heroImg from "@/assets/sloggers-france-tour.png";
 import coffeeImg from "@/assets/coffee-cake.jpg";
 import bikeImg from "@/assets/bike-detail.jpg";
-import { submitJoinRequest } from "@/lib/join.server";
+import { submitJoinForm } from "@/lib/join-form";
 
 export function HeroSection() {
   return (
@@ -294,7 +294,7 @@ export function JoinSection() {
     setErrorMessage("");
 
     try {
-      await submitJoinRequest({ data: form });
+      await submitJoinForm(form);
       setStatus("sent");
     } catch (error) {
       setStatus("error");
