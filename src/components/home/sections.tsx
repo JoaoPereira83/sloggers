@@ -6,45 +6,50 @@ import bikeImg from "@/assets/bike-detail.jpg";
 
 export function HeroSection() {
   return (
-    <section className="relative flex min-h-screen items-end overflow-hidden pt-[calc(5rem+env(safe-area-inset-top))]">
-      <img
-        src={heroImg}
-        alt="Southam Sloggers on the France tour"
-        width={1200}
-        height={1600}
-        className="absolute inset-0 h-full w-full object-cover object-center"
-      />
-      <div className="absolute inset-0 bg-gradient-to-t from-primary-deep via-primary-deep/70 to-primary-deep/30" />
-      <div className="absolute inset-0 bg-gradient-to-r from-primary-deep/85 via-primary-deep/40 to-transparent" />
-      <div className="relative mx-auto w-full max-w-7xl px-6 pb-20 pt-24">
-        <div className="max-w-2xl rounded-3xl border border-primary-foreground/10 bg-primary-deep/75 px-8 py-10 shadow-purple backdrop-blur-md">
-          <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.3em] text-primary-glow">
-            <span className="h-px w-10 bg-primary-glow" />
-            Southam · Warwickshire
-          </div>
-          <h1 className="mt-4 display text-6xl leading-[0.95] text-primary-foreground drop-shadow-sm sm:text-8xl md:text-9xl">
-            Sunday miles.
-            <br />
-            <span className="text-primary-glow">Serious cake.</span>
-          </h1>
-          <p className="mt-6 max-w-xl text-lg font-medium leading-relaxed text-primary-foreground">
-            We're a friendly group of cyclists rolling out of Southam most Sundays — all depends
-            on the weather. Good roads, good pace, and we always stop somewhere for coffee and
-            cake.
-          </p>
-          <div className="mt-8 flex flex-wrap gap-4">
-            <Link
-              to="/join"
-              className="rounded-full bg-primary-glow px-8 py-4 text-sm font-bold uppercase tracking-wider text-primary-deep hover:opacity-90 transition shadow-purple"
-            >
-              Request to join
-            </Link>
-            <Link
-              to="/the-ride"
-              className="rounded-full border border-primary-foreground/40 px-8 py-4 text-sm font-bold uppercase tracking-wider text-primary-foreground hover:bg-primary-foreground/10 transition"
-            >
-              See the ride
-            </Link>
+    <section className="pt-[calc(5rem+env(safe-area-inset-top))]">
+      <div className="grid lg:min-h-[calc(100svh-5rem)] lg:grid-cols-2">
+        {/* Photo — sharp, no blur or overlay */}
+        <div className="relative min-h-[42vh] sm:min-h-[50vh] lg:min-h-full lg:order-2">
+          <img
+            src={heroImg}
+            alt="Southam Sloggers group ride"
+            width={1200}
+            height={1600}
+            className="absolute inset-0 h-full w-full object-cover object-[center_30%]"
+          />
+        </div>
+
+        {/* Text — solid panel, does not cover the photo */}
+        <div className="flex flex-col justify-center bg-background px-6 py-12 sm:px-10 sm:py-16 lg:order-1 lg:px-12 lg:py-20">
+          <div className="mx-auto w-full max-w-xl lg:mx-0">
+            <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.3em] text-primary">
+              <span className="h-px w-10 bg-primary" />
+              Southam · Warwickshire
+            </div>
+            <h1 className="mt-4 display text-5xl leading-[0.95] text-foreground sm:text-7xl lg:text-8xl">
+              Sunday miles.
+              <br />
+              <span className="text-primary">Serious cake.</span>
+            </h1>
+            <p className="mt-6 max-w-lg text-lg leading-relaxed text-muted-foreground">
+              We're a friendly group of cyclists rolling out of Southam most Sundays — all depends
+              on the weather. Good roads, good pace, and we always stop somewhere for coffee and
+              cake.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-4">
+              <Link
+                to="/join"
+                className="rounded-full bg-primary px-8 py-4 text-sm font-bold uppercase tracking-wider text-primary-foreground shadow-purple transition hover:opacity-90"
+              >
+                Request to join
+              </Link>
+              <Link
+                to="/the-ride"
+                className="rounded-full border border-primary/30 px-8 py-4 text-sm font-bold uppercase tracking-wider text-primary transition hover:bg-primary/5"
+              >
+                See the ride
+              </Link>
+            </div>
           </div>
         </div>
       </div>
