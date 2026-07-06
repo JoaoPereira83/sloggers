@@ -26,6 +26,41 @@ function wrapSupabaseError(error: { message: string }) {
   throw new Error(toSupabaseErrorMessage(error.message));
 }
 
+function isMissingGalleryTable(error: { message: string }) {
+  return (
+    error.message.includes("gallery_items") &&
+    (error.message.includes("does not exist") || error.message.includes("Could not find the table"))
+  );
+}
+
+function missingGalleryTableMessage() {
+  return "Gallery database table is missing. Run the gallery_items SQL from supabase/schema.sql in the Supabase SQL editor.";
+}
+
+async function ensureGalleryBucket() {
+  const supabase = getSupabaseAdmin();
+  const { data: buckets, error: listError } = await supabase.storage.listBuckets();
+
+  if (listError) {
+    wrapSupabaseError(listError);
+  }
+
+  if (buckets?.some((bucket) => bucket.name === GALLERY_BUCKET)) {
+    return;
+  }
+
+  const { error: createError } = await supabase.storage.createBucket(GALLERY_BUCKET, {
+    public: true,
+    fileSizeLimit: 8 * 1024 * 1024,
+  });
+
+  if (createError && !createError.message.toLowerCase().includes("already exists")) {
+    throw new Error(
+      `Could not create the gallery storage bucket automatically (${createError.message}). In Supabase → Storage, create a public bucket named gallery.`,
+    );
+  }
+}
+
 export async function listGalleryItemsInSupabase(): Promise<GalleryItem[]> {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
@@ -33,7 +68,12 @@ export async function listGalleryItemsInSupabase(): Promise<GalleryItem[]> {
     .select("*")
     .order("created_at", { ascending: false });
 
-  if (error) wrapSupabaseError(error);
+  if (error) {
+    if (isMissingGalleryTable(error)) {
+      return [];
+    }
+    wrapSupabaseError(error);
+  }
   return (data as GalleryItemRow[]).map(mapGalleryItem);
 }
 
@@ -55,7 +95,12 @@ export async function insertGalleryItemInSupabase(input: {
     .select("*")
     .single();
 
-  if (error) wrapSupabaseError(error);
+  if (error) {
+    if (isMissingGalleryTable(error)) {
+      throw new Error(missingGalleryTableMessage());
+    }
+    wrapSupabaseError(error);
+  }
   return mapGalleryItem(data as GalleryItemRow);
 }
 
@@ -106,6 +151,8 @@ export async function uploadGalleryImageToSupabase(input: {
   const supabase = getSupabaseAdmin();
   const storagePath = input.filename;
 
+  await ensureGalleryBucket();
+
   const { error } = await supabase.storage.from(GALLERY_BUCKET).upload(storagePath, input.buffer, {
     contentType: input.contentType,
     upsert: false,
@@ -113,11 +160,19 @@ export async function uploadGalleryImageToSupabase(input: {
 
   if (error) {
     if (error.message.includes("Bucket not found")) {
-      throw new Error(
-        "Gallery storage is not set up. In Supabase → Storage, create a public bucket named gallery.",
-      );
+      await ensureGalleryBucket();
+      const retry = await supabase.storage.from(GALLERY_BUCKET).upload(storagePath, input.buffer, {
+        contentType: input.contentType,
+        upsert: false,
+      });
+      if (retry.error) {
+        throw new Error(
+          `Gallery storage is not set up (${retry.error.message}). In Supabase → Storage, create a public bucket named gallery.`,
+        );
+      }
+    } else {
+      wrapSupabaseError(error);
     }
-    wrapSupabaseError(error);
   }
 
   const { data } = supabase.storage.from(GALLERY_BUCKET).getPublicUrl(storagePath);
