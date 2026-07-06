@@ -1,0 +1,25 @@
+{
+  "items": [
+    {
+      "id": "sloggers-group",
+      "src": "/gallery/sloggers-group.png",
+      "caption": "Rolling out in the purple",
+      "alt": "Southam Sloggers group riding together on a country road",
+      "createdAt": "2026-03-01T08:30:00.000Z"
+    },
+    {
+      "id": "sloggers-hill",
+      "src": "/gallery/sloggers-hill.png",
+      "caption": "On the lanes together",
+      "alt": "Southam Sloggers riding together on a country road",
+      "createdAt": "2026-03-08T08:30:00.000Z"
+    },
+    {
+      "id": "sloggers-france-tour",
+      "src": "/gallery/sloggers-france-tour.png",
+      "caption": "France tour — the full squad",
+      "alt": "Southam Sloggers group photo on the France tour",
+      "createdAt": "2026-03-15T08:30:00.000Z"
+    }
+  ]
+}

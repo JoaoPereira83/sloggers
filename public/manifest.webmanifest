@@ -1,0 +1,25 @@
+{
+  "name": "Southam Sloggers",
+  "short_name": "Sloggers",
+  "description": "Sunday rides, gallery, and live ride-day tracking for Southam Sloggers.",
+  "start_url": "/ride",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#2a1238",
+  "theme_color": "#5c2d82",
+  "icons": [
+    {
+      "src": "/icons/pwa-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/pwa-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
