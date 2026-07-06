@@ -1,18 +1,22 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, MapPin, Map, Navigation, Radio, TriangleAlert, User, Users } from "lucide-react";
+import { Loader2, LogOut, MapPin, Map, Navigation, Radio, TriangleAlert, User, Users } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { RideMap } from "@/components/RideMap";
 import { SiteFooter, SiteNav } from "@/components/SiteNav";
 import {
-  endRide,
+  getMemberSession,
+  loginMember,
+  logoutMember,
+  registerMember,
+} from "@/lib/member.server";
+import {
   getRideSnapshot,
   joinRide,
   leaveRide,
   deleteRideReport,
   setRideSharing,
-  startRide,
   submitRideReport,
   updateRideReport,
   updateRideLocation,
@@ -64,8 +68,6 @@ function RidePage() {
   const [name, setName] = useState("");
   const [selectedRiderId, setSelectedRiderId] = useState<string | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
-  const [adminPassword, setAdminPassword] = useState("");
-  const [showAdmin, setShowAdmin] = useState(false);
   const [showReportForm, setShowReportForm] = useState(false);
   const [reportType, setReportType] = useState<RideReportType>("mechanical");
   const [reportMessage, setReportMessage] = useState("");
@@ -74,10 +76,20 @@ function RidePage() {
   const [editReportMessage, setEditReportMessage] = useState("");
   const [mobileTab, setMobileTab] = useState<MobileRideTab>("map");
 
+  const memberQuery = useQuery({
+    queryKey: ["member-session"],
+    queryFn: () => getMemberSession(),
+  });
+
+  const member = memberQuery.data?.member ?? null;
+  const isApproved = member?.status === "approved";
+
   const rideQuery = useQuery({
     queryKey: ["ride-snapshot"],
     queryFn: () => getRideSnapshot(),
     refetchInterval: 10_000,
+    enabled: isApproved,
+    retry: false,
   });
 
   const snapshot = rideQuery.data;
@@ -85,11 +97,31 @@ function RidePage() {
     snapshot?.riders.find((rider) => rider.id === snapshot.currentRiderId) ?? null;
   const selectedRider =
     snapshot?.riders.find((rider) => rider.id === selectedRiderId) ?? null;
-  const isJoined = Boolean(snapshot?.currentRiderId);
+  const isOnRide = Boolean(currentRider);
+  const hasStaleSession = Boolean(snapshot?.currentRiderId) && !currentRider;
   const isActive = snapshot?.ride?.status === "active";
   const isSharing = currentRider?.isSharing ?? false;
+  const sharingRiderCount =
+    snapshot?.riders.filter((rider) => rider.isSharing).length ?? 0;
 
+  const invalidateMember = () =>
+    queryClient.invalidateQueries({ queryKey: ["member-session"] });
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["ride-snapshot"] });
+
+  useEffect(() => {
+    if (member?.displayName && !name) {
+      setName(member.displayName);
+    }
+  }, [member?.displayName, name]);
+
+  const logoutMutation = useMutation({
+    mutationFn: () => logoutMember(),
+    onSuccess: () => {
+      invalidateMember();
+      queryClient.removeQueries({ queryKey: ["ride-snapshot"] });
+      setName("");
+    },
+  });
 
   const joinMutation = useMutation({
     mutationFn: (riderName: string) => joinRide({ data: { name: riderName } }),
@@ -107,26 +139,6 @@ function RidePage() {
   const sharingMutation = useMutation({
     mutationFn: (nextSharing: boolean) => setRideSharing({ data: { isSharing: nextSharing } }),
     onSuccess: () => invalidate(),
-  });
-
-  const startMutation = useMutation({
-    mutationFn: () =>
-      startRide({
-        data: {
-          password: adminPassword,
-          title: DEFAULT_RIDE_TITLE,
-          meetingLabel: "Southam",
-        },
-      }),
-    onSuccess: () => invalidate(),
-  });
-
-  const endMutation = useMutation({
-    mutationFn: () => endRide({ data: { password: adminPassword } }),
-    onSuccess: () => {
-      setSelectedRiderId(null);
-      invalidate();
-    },
   });
 
   const reportMutation = useMutation({
@@ -182,7 +194,12 @@ function RidePage() {
   );
 
   useEffect(() => {
-    if (!isJoined || !isActive || !isSharing || !navigator.geolocation) return;
+    if (!hasStaleSession || !isActive) return;
+    void leaveRide();
+  }, [hasStaleSession, isActive]);
+
+  useEffect(() => {
+    if (!isOnRide || !isActive || !isSharing || !navigator.geolocation) return;
 
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
@@ -216,7 +233,7 @@ function RidePage() {
       navigator.geolocation.clearWatch(watchId);
       window.clearInterval(intervalId);
     };
-  }, [isJoined, isActive, isSharing, pushLocation]);
+  }, [isOnRide, isActive, isSharing, pushLocation]);
 
   useEffect(() => {
     if (!isSharing) {
@@ -303,58 +320,126 @@ function RidePage() {
       <main
         className="mx-auto max-w-6xl px-4 pb-[max(5rem,env(safe-area-inset-bottom))] pt-[calc(5.5rem+env(safe-area-inset-top))] sm:px-6 sm:pb-24 sm:pt-28"
       >
-        <div className={`max-w-3xl ${isJoined && isActive ? "hidden sm:block" : ""}`}>
+        <div className={`max-w-3xl ${isOnRide ? "hidden sm:block" : ""}`}>
           <div className="text-xs font-semibold uppercase tracking-[0.3em] text-primary">
             Live tracking
           </div>
           <h1 className="mt-2 display text-4xl leading-none sm:mt-3 sm:text-5xl md:text-7xl">
             Live ride map
           </h1>
-          <p className="mt-3 text-base text-muted-foreground sm:mt-4 sm:text-lg">
-            Share your location with other Sloggers while you&apos;re out on a ride. Perfect when
-            the group splits and you&apos;re waiting at the cafe.
-          </p>
-          <p className="mt-2 hidden text-sm text-muted-foreground sm:block">
-            Add this page to your phone&apos;s home screen for quick access — no app store needed.
-          </p>
+          {!member ? (
+            <p className="mt-3 text-base text-muted-foreground sm:mt-4 sm:text-lg">
+              Create a free Sloggers account to access the live ride map. Once an admin approves
+              your account, you can share your location with other riders — no ride lead setup
+              needed.
+            </p>
+          ) : (
+            <>
+              <p className="mt-3 text-base text-muted-foreground sm:mt-4 sm:text-lg">
+                Share your location with other approved Sloggers while you&apos;re out on a ride.
+                Perfect when the group splits and you&apos;re waiting at the cafe.
+              </p>
+              <p className="mt-2 hidden text-sm text-muted-foreground sm:block">
+                Add this page to your phone&apos;s home screen for quick access — no app store
+                needed.
+              </p>
+            </>
+          )}
+          {member ? (
+            <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+              <span>
+                Signed in as <span className="font-medium text-foreground">{member.displayName}</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => logoutMutation.mutate()}
+                disabled={logoutMutation.isPending}
+                className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium uppercase tracking-wider hover:bg-muted"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                Sign out
+              </button>
+            </div>
+          ) : null}
         </div>
 
-        {isJoined && isActive ? (
+        {memberQuery.isLoading ? (
+          <div className="mt-12 flex items-center gap-3 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            Checking access…
+          </div>
+        ) : !member ? (
+          <MemberAuthPanel
+            onAuthenticated={() => {
+              invalidateMember();
+            }}
+          />
+        ) : member.status === "pending" ? (
+          <PendingApprovalPanel
+            displayName={member.displayName}
+            onSignOut={() => logoutMutation.mutate()}
+            isSigningOut={logoutMutation.isPending}
+          />
+        ) : member.status === "rejected" ? (
+          <RejectedAccessPanel
+            onSignOut={() => logoutMutation.mutate()}
+            isSigningOut={logoutMutation.isPending}
+          />
+        ) : rideQuery.isLoading ? (
+          <div className="mt-12 flex items-center gap-3 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            Loading ride…
+          </div>
+        ) : (
+        <>
+
+        {isOnRide ? (
           <div className="mb-4 sm:hidden">
             <h1 className="display text-3xl leading-none">Live ride map</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              {snapshot?.ride?.title ?? DEFAULT_RIDE_TITLE} · {snapshot?.riders.length ?? 0} riders
+              {snapshot?.ride?.title ?? DEFAULT_RIDE_TITLE} · {sharingRiderCount} sharing
+              {currentRider ? ` · you are ${currentRider.name}` : ""}
             </p>
           </div>
         ) : null}
 
-        <div className={`space-y-4 sm:mt-10 sm:space-y-6 ${isJoined && isActive ? "mt-4" : "mt-8 sm:mt-10"}`}>
-          <StatusBanner rideTitle={snapshot?.ride?.title} isActive={isActive} riderCount={snapshot?.riders.length ?? 0} />
+        <div className={`space-y-4 sm:mt-10 sm:space-y-6 ${isOnRide ? "mt-4" : "mt-8 sm:mt-10"}`}>
+          <StatusBanner
+            rideTitle={snapshot?.ride?.title}
+            isActive={isActive}
+            riderCount={sharingRiderCount}
+          />
 
-          {!isActive ? (
-            <EmptyRideState
-              showAdmin={showAdmin}
-              onToggleAdmin={() => setShowAdmin((value) => !value)}
-              adminPassword={adminPassword}
-              onAdminPasswordChange={setAdminPassword}
-              onStart={() => startMutation.mutate()}
-              isStarting={startMutation.isPending}
-              startError={startMutation.error instanceof Error ? startMutation.error.message : null}
-            />
-          ) : !isJoined ? (
-            <JoinCard
-              name={name}
-              onNameChange={setName}
-              onJoin={() => joinMutation.mutate(name)}
-              isJoining={joinMutation.isPending}
-              error={joinMutation.error instanceof Error ? joinMutation.error.message : null}
-            />
+          {!isOnRide ? (
+            <>
+              {sharingRiderCount > 0 ? (
+                <RideMap
+                  riders={snapshot?.riders ?? []}
+                  selectedRiderId={selectedRiderId}
+                  currentRiderId={snapshot?.currentRiderId ?? null}
+                  onSelectRider={setSelectedRiderId}
+                />
+              ) : null}
+              <JoinCard
+                name={name}
+                onNameChange={setName}
+                onJoin={() => joinMutation.mutate(name)}
+                isJoining={joinMutation.isPending}
+                error={joinMutation.error instanceof Error ? joinMutation.error.message : null}
+                staleSession={hasStaleSession}
+                othersSharing={sharingRiderCount}
+              />
+            </>
           ) : (
             <>
               <div className="sticky top-[calc(4.75rem+env(safe-area-inset-top))] z-30 -mx-4 border-b border-border/60 bg-background/95 px-4 py-3 backdrop-blur-md sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:backdrop-blur-none">
                 <SharingControls
+                  riderName={currentRider?.name ?? null}
                   isSharing={isSharing}
                   locationError={locationError}
+                  shareError={
+                    sharingMutation.error instanceof Error ? sharingMutation.error.message : null
+                  }
                   onToggleSharing={(next) => sharingMutation.mutate(next)}
                   onLeave={() => leaveMutation.mutate()}
                   isUpdating={sharingMutation.isPending || leaveMutation.isPending}
@@ -389,9 +474,13 @@ function RidePage() {
 
                 {mobileTab === "rider" ? (
                   <RiderDetail
-                    rider={selectedRider}
+                    rider={selectedRider ?? currentRider}
                     currentRider={currentRider}
                     onClear={handleClearRider}
+                    isSelfView={!selectedRider && Boolean(currentRider)}
+                    isSharing={isSharing}
+                    onEnableSharing={() => sharingMutation.mutate(true)}
+                    isEnablingSharing={sharingMutation.isPending}
                   />
                 ) : null}
 
@@ -419,9 +508,13 @@ function RidePage() {
                     onSelectRider={setSelectedRiderId}
                   />
                   <RiderDetail
-                    rider={selectedRider}
+                    rider={selectedRider ?? currentRider}
                     currentRider={currentRider}
                     onClear={() => setSelectedRiderId(null)}
+                    isSelfView={!selectedRider && Boolean(currentRider)}
+                    isSharing={isSharing}
+                    onEnableSharing={() => sharingMutation.mutate(true)}
+                    isEnablingSharing={sharingMutation.isPending}
                   />
                 </div>
 
@@ -430,19 +523,9 @@ function RidePage() {
               </div>
             </>
           )}
-
-          {isActive ? (
-            <AdminPanel
-              showAdmin={showAdmin}
-              onToggleAdmin={() => setShowAdmin((value) => !value)}
-              adminPassword={adminPassword}
-              onAdminPasswordChange={setAdminPassword}
-              onEnd={() => endMutation.mutate()}
-              isEnding={endMutation.isPending}
-              endError={endMutation.error instanceof Error ? endMutation.error.message : null}
-            />
-          ) : null}
         </div>
+        </>
+        )}
       </main>
       <SiteFooter />
     </div>
@@ -462,7 +545,7 @@ function StatusBanner({
     <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card px-4 py-3 shadow-soft sm:flex-row sm:flex-wrap sm:items-center sm:gap-4 sm:rounded-3xl sm:px-6 sm:py-4">
       <div className="inline-flex items-center gap-2 text-sm font-medium">
         <Radio className={`h-4 w-4 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
-        {isActive ? `${rideTitle ?? DEFAULT_RIDE_TITLE} is live` : "No active ride right now"}
+        {isActive ? `${rideTitle ?? DEFAULT_RIDE_TITLE} is live` : "No riders sharing yet"}
       </div>
       <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
         <Users className="h-4 w-4" />
@@ -538,92 +621,125 @@ function JoinCard({
   onJoin,
   isJoining,
   error,
+  staleSession,
+  othersSharing,
 }: {
   name: string;
   onNameChange: (value: string) => void;
   onJoin: () => void;
   isJoining: boolean;
   error: string | null;
+  staleSession?: boolean;
+  othersSharing?: number;
 }) {
   return (
     <form
-      className="w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-soft sm:rounded-3xl sm:p-8"
+      className="w-full rounded-2xl border-2 border-primary/25 bg-card p-5 shadow-soft sm:max-w-md sm:rounded-3xl sm:p-8"
       onSubmit={(event) => {
         event.preventDefault();
         onJoin();
       }}
     >
-      <h2 className="display text-2xl sm:text-3xl">Join live tracking</h2>
-      <p className="mt-2 text-sm text-muted-foreground">
-        Your location will only be visible to other riders who joined this ride. Names must be
-        unique — if someone is already using yours, add an initial or nickname.
-      </p>
-      <label className="mt-6 block text-xs uppercase tracking-widest text-muted-foreground">
+      <h2 className="display text-3xl sm:text-3xl">Share your location</h2>
+      {staleSession ? (
+        <p className="mt-3 rounded-xl border border-primary/20 bg-primary/10 px-4 py-3 text-base leading-relaxed text-foreground">
+          Your previous session expired. Tap below to rejoin the live map.
+        </p>
+      ) : (
+        <p className="mt-3 text-base leading-relaxed text-foreground/85 sm:text-sm sm:text-muted-foreground">
+          {othersSharing
+            ? `${othersSharing} rider${othersSharing === 1 ? " is" : "s are"} already sharing. Join them on the map.`
+            : "Tap below to start sharing your location with other approved Sloggers on today's ride."}
+          {" "}Names must be unique — add an initial or nickname if yours is taken.
+        </p>
+      )}
+      <label
+        htmlFor="ride-join-name"
+        className="mt-6 block text-sm font-semibold uppercase tracking-widest text-foreground/80"
+      >
         Your name
       </label>
       <input
+        id="ride-join-name"
         value={name}
         onChange={(event) => onNameChange(event.target.value)}
-        placeholder="How the group knows you"
+        placeholder="e.g. Joao, Blue, Sarah B"
         required
-        className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 text-base"
+        autoComplete="name"
+        className="mt-2 w-full rounded-xl border-2 border-input bg-background px-4 py-3.5 text-base text-foreground placeholder:text-foreground/45"
       />
-      {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}
+      {error ? <p className="mt-3 text-base text-destructive">{error}</p> : null}
       <button
         type="submit"
-        disabled={isJoining}
-        className="mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold uppercase tracking-wider text-primary-foreground sm:w-auto"
+        disabled={isJoining || !name.trim()}
+        className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-3.5 text-base font-semibold uppercase tracking-wider text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-11 sm:w-auto sm:text-sm"
       >
-        {isJoining ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
-        Share my location
+        {isJoining ? <Loader2 className="h-5 w-5 animate-spin" /> : <MapPin className="h-5 w-5" />}
+        Join and share location
       </button>
     </form>
   );
 }
 
 function SharingControls({
+  riderName,
   isSharing,
   locationError,
+  shareError,
   onToggleSharing,
   onLeave,
   isUpdating,
 }: {
+  riderName: string | null;
   isSharing: boolean;
   locationError: string | null;
+  shareError: string | null;
   onToggleSharing: (value: boolean) => void;
   onLeave: () => void;
   isUpdating: boolean;
 }) {
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 shadow-soft sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 sm:rounded-3xl sm:px-5 sm:py-4">
+      {riderName ? (
+        <p className="w-full text-base font-medium text-foreground sm:text-sm">
+          Joined as <span className="font-semibold text-primary">{riderName}</span>
+          {!isSharing ? " — location sharing is off" : null}
+        </p>
+      ) : null}
       <button
         type="button"
         disabled={isUpdating}
         onClick={() => onToggleSharing(!isSharing)}
-        className={`inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold uppercase tracking-wider sm:w-auto ${
+        className={`inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-base font-semibold uppercase tracking-wider disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-11 sm:w-auto sm:py-2.5 sm:text-sm ${
           isSharing
             ? "bg-primary text-primary-foreground"
-            : "border border-border bg-background text-foreground"
+            : "bg-primary text-primary-foreground shadow-purple"
         }`}
       >
-        <Navigation className="h-4 w-4" />
+        <Navigation className="h-5 w-5 sm:h-4 sm:w-4" />
         {isSharing ? "Sharing location" : "Share my location"}
       </button>
       <button
         type="button"
         disabled={isUpdating}
         onClick={onLeave}
-        className="min-h-11 w-full rounded-full border border-border px-5 py-2.5 text-sm font-medium text-muted-foreground sm:w-auto"
+        className="min-h-12 w-full rounded-full border border-border px-5 py-3 text-base font-medium text-foreground/80 sm:min-h-11 sm:w-auto sm:py-2.5 sm:text-sm"
       >
         Leave ride
       </button>
-      {locationError ? <p className="w-full text-sm text-destructive">{locationError}</p> : null}
+      {shareError ? <p className="w-full text-base text-destructive sm:text-sm">{shareError}</p> : null}
+      {locationError ? <p className="w-full text-base text-destructive sm:text-sm">{locationError}</p> : null}
       {isSharing ? (
-        <p className="w-full text-sm text-muted-foreground">
+        <p className="w-full text-base leading-relaxed text-foreground/80 sm:text-sm sm:text-muted-foreground">
           Keep this page open while riding for the best updates. At the cafe, open the group map to
           see where the other half is.
         </p>
-      ) : null}
+      ) : (
+        <p className="w-full text-base leading-relaxed text-foreground/80 sm:text-sm sm:text-muted-foreground">
+          Tap the purple button above to turn on location sharing. Your phone will ask for location
+          permission the first time.
+        </p>
+      )}
     </div>
   );
 }
@@ -685,17 +801,25 @@ function RiderDetail({
   rider,
   currentRider,
   onClear,
+  isSelfView = false,
+  isSharing = false,
+  onEnableSharing,
+  isEnablingSharing = false,
 }: {
   rider: RideRider | null;
   currentRider: RideRider | null;
   onClear: () => void;
+  isSelfView?: boolean;
+  isSharing?: boolean;
+  onEnableSharing?: () => void;
+  isEnablingSharing?: boolean;
 }) {
   if (!rider) {
     return (
       <section className="rounded-2xl border border-dashed border-border bg-muted/20 p-4 sm:rounded-3xl sm:p-6">
         <h2 className="display text-2xl sm:text-3xl">Individual tracker</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Select a rider from the group list or tap their marker on the map.
+        <p className="mt-2 text-base leading-relaxed text-foreground/85 sm:text-sm sm:text-muted-foreground">
+          Select a rider from the Group tab, or tap their marker on the map.
         </p>
       </section>
     );
@@ -725,17 +849,44 @@ function RiderDetail({
     <section className="rounded-2xl border border-border bg-card p-4 shadow-soft sm:rounded-3xl sm:p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="display text-2xl sm:text-3xl">{rider.name}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Individual tracker</p>
+          <h2 className="display text-2xl sm:text-3xl">
+            {rider.name}
+            {isSelfView ? " (you)" : ""}
+          </h2>
+          <p className="mt-1 text-base text-foreground/80 sm:text-sm sm:text-muted-foreground">
+            {isSelfView ? "Your tracker" : "Individual tracker"}
+          </p>
         </div>
-        <button
-          type="button"
-          onClick={onClear}
-          className="text-sm text-primary hover:underline"
-        >
-          Back to group
-        </button>
+        {!isSelfView ? (
+          <button
+            type="button"
+            onClick={onClear}
+            className="text-base text-primary hover:underline sm:text-sm"
+          >
+            Back to group
+          </button>
+        ) : null}
       </div>
+      {isSelfView && !isSharing && onEnableSharing ? (
+        <div className="mt-4 rounded-xl border border-primary/20 bg-primary/10 p-4">
+          <p className="text-base leading-relaxed text-foreground">
+            Location sharing is off. Turn it on so others can see you on the map.
+          </p>
+          <button
+            type="button"
+            disabled={isEnablingSharing}
+            onClick={onEnableSharing}
+            className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold uppercase tracking-wider text-primary-foreground disabled:opacity-50 sm:w-auto"
+          >
+            {isEnablingSharing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Navigation className="h-4 w-4" />
+            )}
+            Share my location
+          </button>
+        </div>
+      ) : null}
       <dl className="mt-6 space-y-4 text-sm">
         <div>
           <dt className="text-xs uppercase tracking-widest text-muted-foreground">Status</dt>
@@ -809,10 +960,10 @@ function ReportPanel({
     <div className="rounded-2xl border border-border bg-card px-4 py-4 shadow-soft sm:rounded-3xl sm:px-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold uppercase tracking-widest text-primary">
+          <h2 className="text-sm font-semibold uppercase tracking-widest text-primary sm:text-sm">
             Need help?
           </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-2 text-base leading-relaxed text-foreground/85 sm:mt-1 sm:text-sm sm:text-muted-foreground">
             Report an accident, mechanical, or if someone is lost — the group will see it here.
             {isSharing
               ? " You can update or delete your own reports while sharing location."
@@ -823,9 +974,9 @@ function ReportPanel({
           type="button"
           onClick={onToggleForm}
           disabled={!isSharing}
-          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-destructive/30 bg-destructive/5 px-5 py-2.5 text-sm font-semibold uppercase tracking-wider text-destructive disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+          className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-destructive/30 bg-destructive/10 px-5 py-3 text-base font-semibold uppercase tracking-wider text-destructive disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-11 sm:w-auto sm:py-2.5 sm:text-sm"
         >
-          <TriangleAlert className="h-4 w-4" />
+          <TriangleAlert className="h-5 w-5 sm:h-4 sm:w-4" aria-hidden="true" />
           {showForm ? "Cancel report" : "Report an issue"}
         </button>
       </div>
@@ -893,12 +1044,14 @@ function ReportFormFields({
               onChange={() => onReportTypeChange(option.type)}
               className="sr-only"
             />
-            <div className="font-medium">{option.label}</div>
-            <div className="mt-1 text-xs text-muted-foreground">{option.description}</div>
+            <div className="text-base font-semibold sm:font-medium">{option.label}</div>
+            <div className="mt-1 text-sm leading-relaxed text-foreground/75 sm:text-xs sm:text-muted-foreground">
+              {option.description}
+            </div>
           </label>
         ))}
       </div>
-      <label className="block text-xs uppercase tracking-widest text-muted-foreground">
+      <label className="block text-sm font-semibold uppercase tracking-widest text-foreground/80 sm:text-xs sm:font-medium sm:text-muted-foreground">
         Extra details (optional)
       </label>
       <textarea
@@ -906,7 +1059,7 @@ function ReportFormFields({
         onChange={(event) => onReportMessageChange(event.target.value)}
         placeholder="e.g. Puncture on B445, or waiting at the crossroads"
         rows={3}
-        className="w-full rounded-xl border border-input bg-background px-4 py-3"
+        className="w-full rounded-xl border border-input bg-background px-4 py-3 text-base sm:text-sm"
       />
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
@@ -970,12 +1123,12 @@ function ReportsFeed({
   deleteError: string | null;
 }) {
   return (
-    <section className="rounded-2xl border border-destructive/20 bg-destructive/5 p-4 shadow-soft sm:rounded-3xl sm:p-6">
+    <section className="rounded-2xl border border-destructive/30 bg-card p-4 shadow-soft sm:rounded-3xl sm:p-6">
       <h2 className="display text-2xl sm:text-3xl">Ride reports</h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Alerts from riders sharing live. Tap one to locate them on the map.
+      <p className="mt-2 text-base leading-relaxed text-foreground/80 sm:mt-1 sm:text-sm sm:text-muted-foreground">
+        Alerts from riders sharing live. Tap a report to locate them on the map.
       </p>
-      <div className="mt-4 space-y-3">
+      <div className="mt-4 space-y-3 sm:space-y-3">
         {reports.map((report) => {
           const isOwnReport = report.riderId === currentRiderId;
           const canManage = isOwnReport && isSharing;
@@ -984,7 +1137,7 @@ function ReportsFeed({
           return (
             <div
               key={report.id}
-              className="rounded-2xl border border-destructive/20 bg-background px-4 py-3"
+              className="rounded-2xl border border-destructive/25 bg-background px-4 py-4 sm:px-5 sm:py-4"
             >
               {isEditing ? (
                 <ReportFormFields
@@ -1003,28 +1156,38 @@ function ReportsFeed({
                   <button
                     type="button"
                     onClick={() => onSelectRider(report.riderId)}
-                    className="flex w-full items-start justify-between gap-4 text-left transition hover:opacity-90"
+                    className="flex w-full items-start gap-3 text-left transition active:opacity-80 sm:gap-4"
                   >
-                    <div>
-                      <div className="font-medium">
-                        {report.riderName} · {formatReportType(report.type)}
-                        {isOwnReport ? " (you)" : ""}
-                      </div>
+                    <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-destructive/15">
+                      <TriangleAlert className="h-5 w-5 text-destructive" aria-hidden="true" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-base font-semibold leading-snug text-foreground sm:text-lg">
+                        {report.riderName}
+                        <span className="font-medium text-foreground/85">
+                          {" "}
+                          · {formatReportType(report.type)}
+                        </span>
+                        {isOwnReport ? (
+                          <span className="font-medium text-primary"> (you)</span>
+                        ) : null}
+                      </span>
                       {report.message ? (
-                        <p className="mt-1 text-sm text-muted-foreground">{report.message}</p>
+                        <p className="mt-2 text-base leading-relaxed text-foreground/90">
+                          {report.message}
+                        </p>
                       ) : null}
-                      <p className="mt-2 text-xs text-muted-foreground">
+                      <p className="mt-2 text-sm font-medium text-foreground/70">
                         {formatReportTime(report.createdAt)}
                       </p>
-                    </div>
-                    <TriangleAlert className="mt-1 h-4 w-4 shrink-0 text-destructive" />
+                    </span>
                   </button>
                   {canManage ? (
-                    <div className="mt-3 flex flex-wrap gap-3 border-t border-border pt-3">
+                    <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:gap-3">
                       <button
                         type="button"
                         onClick={() => onStartEdit(report)}
-                        className="text-sm font-medium text-primary hover:underline"
+                        className="inline-flex min-h-11 flex-1 items-center justify-center rounded-full border border-border bg-background px-4 text-base font-semibold text-foreground transition hover:bg-muted/40"
                       >
                         Edit report
                       </button>
@@ -1032,13 +1195,13 @@ function ReportsFeed({
                         type="button"
                         disabled={isDeleting}
                         onClick={() => onDelete(report.id)}
-                        className="text-sm font-medium text-destructive hover:underline disabled:opacity-50"
+                        className="inline-flex min-h-11 flex-1 items-center justify-center rounded-full border border-destructive/40 bg-destructive/10 px-4 text-base font-semibold text-destructive transition hover:bg-destructive/15 disabled:opacity-50"
                       >
                         Delete report
                       </button>
                     </div>
                   ) : isOwnReport ? (
-                    <p className="mt-3 border-t border-border pt-3 text-xs text-muted-foreground">
+                    <p className="mt-4 border-t border-border pt-4 text-sm leading-relaxed text-foreground/75">
                       Turn location sharing back on to edit or delete this report.
                     </p>
                   ) : null}
@@ -1052,129 +1215,198 @@ function ReportsFeed({
   );
 }
 
-function EmptyRideState({
-  showAdmin,
-  onToggleAdmin,
-  adminPassword,
-  onAdminPasswordChange,
-  onStart,
-  isStarting,
-  startError,
-}: {
-  showAdmin: boolean;
-  onToggleAdmin: () => void;
-  adminPassword: string;
-  onAdminPasswordChange: (value: string) => void;
-  onStart: () => void;
-  isStarting: boolean;
-  startError: string | null;
-}) {
+function MemberAuthPanel({ onAuthenticated }: { onAuthenticated: () => void }) {
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const loginMutation = useMutation({
+    mutationFn: () => loginMember({ data: { email, password } }),
+    onSuccess: () => {
+      setError(null);
+      onAuthenticated();
+    },
+    onError: (err) => {
+      setError(err instanceof Error ? err.message : "Sign in failed.");
+    },
+  });
+
+  const registerMutation = useMutation({
+    mutationFn: () => registerMember({ data: { email, password, displayName } }),
+    onSuccess: () => {
+      setError(null);
+      onAuthenticated();
+    },
+    onError: (err) => {
+      setError(err instanceof Error ? err.message : "Registration failed.");
+    },
+  });
+
+  const isSubmitting = loginMutation.isPending || registerMutation.isPending;
+
   return (
-    <div className="rounded-3xl border border-border bg-card p-8 shadow-soft">
-      <h2 className="display text-3xl">No ride live yet</h2>
-      <p className="mt-2 max-w-2xl text-muted-foreground">
-        When a ride lead starts live tracking, everyone can opt in here and appear on the shared
-        map.
+    <div className="mt-8 max-w-lg rounded-3xl border-2 border-primary/30 bg-card p-8 shadow-soft">
+      <h2 className="display text-4xl">Sign in to ride map</h2>
+      <p className="mt-3 text-muted-foreground">
+        Register for a free Sloggers account. An admin will approve you, then you can share your
+        live location with other riders — no passwords or ride-lead setup required.
       </p>
-      <button
-        type="button"
-        onClick={onToggleAdmin}
-        className={`mt-6 inline-flex rounded-full px-6 py-3 text-sm font-semibold uppercase tracking-wider transition ${
-          showAdmin
-            ? "border border-primary/30 text-primary hover:bg-primary/5"
-            : "bg-primary text-primary-foreground hover:opacity-90"
-        }`}
-      >
-        {showAdmin ? "Hide ride lead controls" : "Ride lead: start live tracking"}
-      </button>
-      {showAdmin ? (
-        <form
-          className="mt-4 max-w-sm space-y-3"
-          onSubmit={(event) => {
-            event.preventDefault();
-            onStart();
+
+      <div className="mt-6 flex gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            setMode("login");
+            setError(null);
           }}
+          className={`rounded-full px-4 py-2 text-sm font-semibold uppercase tracking-wider ${
+            mode === "login"
+              ? "bg-primary text-primary-foreground"
+              : "border border-border hover:bg-muted"
+          }`}
         >
+          Sign in
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setMode("register");
+            setError(null);
+          }}
+          className={`rounded-full px-4 py-2 text-sm font-semibold uppercase tracking-wider ${
+            mode === "register"
+              ? "bg-primary text-primary-foreground"
+              : "border border-border hover:bg-muted"
+          }`}
+        >
+          Create account
+        </button>
+      </div>
+
+      <form
+        className="mt-6 space-y-4"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (mode === "login") {
+            loginMutation.mutate();
+          } else {
+            registerMutation.mutate();
+          }
+        }}
+      >
+        {mode === "register" ? (
+          <div>
+            <label className="block text-xs uppercase tracking-widest text-muted-foreground">
+              Ride name
+            </label>
+            <input
+              value={displayName}
+              onChange={(event) => setDisplayName(event.target.value)}
+              placeholder="e.g. Joao, Blue, Sarah B"
+              required
+              autoComplete="name"
+              className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3"
+            />
+          </div>
+        ) : null}
+        <div>
+          <label className="block text-xs uppercase tracking-widest text-muted-foreground">
+            Email
+          </label>
+          <input
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            required
+            autoComplete="email"
+            className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3"
+          />
+        </div>
+        <div>
+          <label className="block text-xs uppercase tracking-widest text-muted-foreground">
+            Password
+          </label>
           <input
             type="password"
-            value={adminPassword}
-            onChange={(event) => onAdminPasswordChange(event.target.value)}
-            placeholder="Ride admin password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
             required
-            className="w-full rounded-xl border border-input bg-background px-4 py-3"
+            minLength={8}
+            autoComplete={mode === "login" ? "current-password" : "new-password"}
+            className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3"
           />
-          {startError ? <p className="text-sm text-destructive">{startError}</p> : null}
-          <button
-            type="submit"
-            disabled={isStarting}
-            className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold uppercase tracking-wider text-primary-foreground"
-          >
-            {isStarting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            Start live tracking
-          </button>
-        </form>
-      ) : null}
+          {mode === "register" ? (
+            <p className="mt-1 text-xs text-muted-foreground">At least 8 characters.</p>
+          ) : null}
+        </div>
+        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold uppercase tracking-wider text-primary-foreground disabled:opacity-60"
+        >
+          {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+          {mode === "login" ? "Sign in" : "Create account"}
+        </button>
+      </form>
     </div>
   );
 }
 
-function AdminPanel({
-  showAdmin,
-  onToggleAdmin,
-  adminPassword,
-  onAdminPasswordChange,
-  onEnd,
-  isEnding,
-  endError,
+function PendingApprovalPanel({
+  displayName,
+  onSignOut,
+  isSigningOut,
 }: {
-  showAdmin: boolean;
-  onToggleAdmin: () => void;
-  adminPassword: string;
-  onAdminPasswordChange: (value: string) => void;
-  onEnd: () => void;
-  isEnding: boolean;
-  endError: string | null;
+  displayName: string;
+  onSignOut: () => void;
+  isSigningOut: boolean;
 }) {
   return (
-    <div className="rounded-3xl border border-border bg-muted/20 p-6">
+    <div className="mt-8 max-w-lg rounded-3xl border border-primary/25 bg-card p-8 shadow-soft">
+      <h2 className="display text-3xl">Waiting for approval</h2>
+      <p className="mt-3 text-muted-foreground">
+        Thanks, {displayName}. Your account has been created and is waiting for an admin to approve
+        it. You&apos;ll be able to use the live ride map once approved.
+      </p>
       <button
         type="button"
-        onClick={onToggleAdmin}
-        className={`inline-flex rounded-full px-6 py-3 text-sm font-semibold uppercase tracking-wider transition ${
-          showAdmin
-            ? "border border-primary/30 text-primary hover:bg-primary/5"
-            : "border border-primary/30 text-primary hover:bg-primary/5"
-        }`}
+        onClick={onSignOut}
+        disabled={isSigningOut}
+        className="mt-6 inline-flex items-center gap-2 rounded-full border border-border px-5 py-2 text-sm font-medium hover:bg-muted"
       >
-        {showAdmin ? "Hide ride lead controls" : "Ride lead: end ride for everyone"}
+        {isSigningOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+        Sign out
       </button>
-      {showAdmin ? (
-        <form
-          className="mt-4 max-w-sm space-y-3"
-          onSubmit={(event) => {
-            event.preventDefault();
-            onEnd();
-          }}
-        >
-          <input
-            type="password"
-            value={adminPassword}
-            onChange={(event) => onAdminPasswordChange(event.target.value)}
-            placeholder="Ride admin password"
-            required
-            className="w-full rounded-xl border border-input bg-background px-4 py-3"
-          />
-          {endError ? <p className="text-sm text-destructive">{endError}</p> : null}
-          <button
-            type="submit"
-            disabled={isEnding}
-            className="inline-flex items-center gap-2 rounded-full border border-destructive/30 px-6 py-3 text-sm font-semibold uppercase tracking-wider text-destructive"
-          >
-            {isEnding ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            End ride & stop all sharing
-          </button>
-        </form>
-      ) : null}
+    </div>
+  );
+}
+
+function RejectedAccessPanel({
+  onSignOut,
+  isSigningOut,
+}: {
+  onSignOut: () => void;
+  isSigningOut: boolean;
+}) {
+  return (
+    <div className="mt-8 max-w-lg rounded-3xl border border-destructive/25 bg-card p-8 shadow-soft">
+      <h2 className="display text-3xl">Access not approved</h2>
+      <p className="mt-3 text-muted-foreground">
+        Your account was not approved for ride map access. Contact a ride lead if you think this is
+        a mistake.
+      </p>
+      <button
+        type="button"
+        onClick={onSignOut}
+        disabled={isSigningOut}
+        className="mt-6 inline-flex items-center gap-2 rounded-full border border-border px-5 py-2 text-sm font-medium hover:bg-muted"
+      >
+        {isSigningOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+        Sign out
+      </button>
     </div>
   );
 }

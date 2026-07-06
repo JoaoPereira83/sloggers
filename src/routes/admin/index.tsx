@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Loader2, LogOut, Trash2 } from "lucide-react";
+import { Check, Loader2, LogOut, Trash2, X } from "lucide-react";
 
 import { SiteFooter, SiteNav } from "@/components/SiteNav";
 import {
@@ -13,7 +13,13 @@ import {
   getGalleryItems,
   updateGalleryPhoto,
 } from "@/lib/gallery.server";
+import {
+  approveMember,
+  listMembersForAdmin,
+  rejectMember,
+} from "@/lib/member.server";
 import type { GalleryItem } from "@/lib/gallery-types";
+import type { PublicMember } from "@/lib/member-types";
 
 export const Route = createFileRoute("/admin/")({
   head: () => ({
@@ -30,6 +36,8 @@ export const Route = createFileRoute("/admin/")({
 
 function AdminPage() {
   const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState<"gallery" | "members">("gallery");
+
   const sessionQuery = useQuery({
     queryKey: ["admin-session"],
     queryFn: () => getAdminSession(),
@@ -38,6 +46,12 @@ function AdminPage() {
   const galleryQuery = useQuery({
     queryKey: ["gallery-items"],
     queryFn: () => getGalleryItems(),
+    enabled: Boolean(sessionQuery.data?.isAdmin),
+  });
+
+  const membersQuery = useQuery({
+    queryKey: ["admin-members"],
+    queryFn: () => listMembersForAdmin(),
     enabled: Boolean(sessionQuery.data?.isAdmin),
   });
 
@@ -54,6 +68,7 @@ function AdminPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-session"] });
       queryClient.removeQueries({ queryKey: ["gallery-items"] });
+      queryClient.removeQueries({ queryKey: ["admin-members"] });
     },
   });
 
@@ -68,9 +83,9 @@ function AdminPage() {
             <div className="text-xs font-semibold uppercase tracking-[0.3em] text-primary">
               Admin
             </div>
-            <h1 className="mt-3 display text-5xl leading-none">Gallery editor</h1>
+            <h1 className="mt-3 display text-5xl leading-none">Site admin</h1>
             <p className="mt-4 max-w-2xl text-muted-foreground">
-              Log in to upload ride photos, edit captions, and remove old shots.
+              Manage gallery photos and approve members for live ride map access.
             </p>
           </div>
           {isAdmin ? (
@@ -91,11 +106,51 @@ function AdminPage() {
             Checking session…
           </div>
         ) : isAdmin ? (
-          <AdminGalleryEditor
-            items={galleryQuery.data ?? []}
-            isLoading={galleryQuery.isLoading}
-            onChanged={() => queryClient.invalidateQueries({ queryKey: ["gallery-items"] })}
-          />
+          <>
+            <div className="mt-8 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveTab("gallery")}
+                className={`rounded-full px-5 py-2 text-sm font-semibold uppercase tracking-wider ${
+                  activeTab === "gallery"
+                    ? "bg-primary text-primary-foreground"
+                    : "border border-border hover:bg-muted"
+                }`}
+              >
+                Gallery
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("members")}
+                className={`rounded-full px-5 py-2 text-sm font-semibold uppercase tracking-wider ${
+                  activeTab === "members"
+                    ? "bg-primary text-primary-foreground"
+                    : "border border-border hover:bg-muted"
+                }`}
+              >
+                Members
+                {membersQuery.data?.some((member) => member.status === "pending") ? (
+                  <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary-foreground/20 px-1.5 text-xs">
+                    {membersQuery.data.filter((member) => member.status === "pending").length}
+                  </span>
+                ) : null}
+              </button>
+            </div>
+
+            {activeTab === "gallery" ? (
+              <AdminGalleryEditor
+                items={galleryQuery.data ?? []}
+                isLoading={galleryQuery.isLoading}
+                onChanged={() => queryClient.invalidateQueries({ queryKey: ["gallery-items"] })}
+              />
+            ) : (
+              <AdminMembersPanel
+                members={membersQuery.data ?? []}
+                isLoading={membersQuery.isLoading}
+                onChanged={() => queryClient.invalidateQueries({ queryKey: ["admin-members"] })}
+              />
+            )}
+          </>
         ) : (
           <LoginForm
             onSubmit={(password) => loginMutation.mutate(password)}
@@ -348,6 +403,148 @@ function AdminGalleryEditor({
                   <Trash2 className="h-4 w-4" />
                   Delete
                 </button>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function memberStatusLabel(status: PublicMember["status"]) {
+  if (status === "pending") return "Pending";
+  if (status === "approved") return "Approved";
+  return "Rejected";
+}
+
+function AdminMembersPanel({
+  members,
+  isLoading,
+  onChanged,
+}: {
+  members: PublicMember[];
+  isLoading: boolean;
+  onChanged: () => void;
+}) {
+  const approveMutation = useMutation({
+    mutationFn: (memberId: string) => approveMember({ data: { memberId } }),
+    onSuccess: onChanged,
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: (memberId: string) => rejectMember({ data: { memberId } }),
+    onSuccess: onChanged,
+  });
+
+  const pendingMembers = members.filter((member) => member.status === "pending");
+  const otherMembers = members.filter((member) => member.status !== "pending");
+
+  return (
+    <div className="mt-12 space-y-12">
+      <section className="rounded-3xl border border-border bg-card p-8 shadow-soft">
+        <h2 className="display text-3xl">Pending approvals</h2>
+        <p className="mt-2 text-muted-foreground">
+          Approve members before they can access the live ride map.
+        </p>
+        {isLoading ? (
+          <div className="mt-6 flex items-center gap-3 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            Loading members…
+          </div>
+        ) : pendingMembers.length === 0 ? (
+          <p className="mt-6 text-muted-foreground">No pending member requests.</p>
+        ) : (
+          <div className="mt-6 space-y-4">
+            {pendingMembers.map((member) => (
+              <article
+                key={member.id}
+                className="flex flex-col gap-4 rounded-2xl border border-border bg-background p-4 md:flex-row md:items-center md:justify-between"
+              >
+                <div>
+                  <p className="font-medium">{member.displayName}</p>
+                  <p className="text-sm text-muted-foreground">{member.email}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Requested {new Date(member.createdAt).toLocaleDateString("en-GB")}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={approveMutation.isPending}
+                    onClick={() => approveMutation.mutate(member.id)}
+                    className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+                  >
+                    <Check className="h-4 w-4" />
+                    Approve
+                  </button>
+                  <button
+                    type="button"
+                    disabled={rejectMutation.isPending}
+                    onClick={() => rejectMutation.mutate(member.id)}
+                    className="inline-flex items-center gap-2 rounded-full border border-destructive/30 px-4 py-2 text-sm text-destructive"
+                  >
+                    <X className="h-4 w-4" />
+                    Reject
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section>
+        <h2 className="display text-3xl">All members</h2>
+        {isLoading ? (
+          <div className="mt-6 flex items-center gap-3 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            Loading members…
+          </div>
+        ) : otherMembers.length === 0 ? (
+          <p className="mt-6 text-muted-foreground">No approved or rejected members yet.</p>
+        ) : (
+          <div className="mt-6 space-y-3">
+            {otherMembers.map((member) => (
+              <article
+                key={member.id}
+                className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-4 md:flex-row md:items-center md:justify-between"
+              >
+                <div>
+                  <p className="font-medium">{member.displayName}</p>
+                  <p className="text-sm text-muted-foreground">{member.email}</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wider ${
+                      member.status === "approved"
+                        ? "bg-primary/10 text-primary"
+                        : "bg-destructive/10 text-destructive"
+                    }`}
+                  >
+                    {memberStatusLabel(member.status)}
+                  </span>
+                  {member.status === "rejected" ? (
+                    <button
+                      type="button"
+                      disabled={approveMutation.isPending}
+                      onClick={() => approveMutation.mutate(member.id)}
+                      className="text-sm text-primary hover:underline"
+                    >
+                      Approve
+                    </button>
+                  ) : null}
+                  {member.status === "approved" ? (
+                    <button
+                      type="button"
+                      disabled={rejectMutation.isPending}
+                      onClick={() => rejectMutation.mutate(member.id)}
+                      className="text-sm text-destructive hover:underline"
+                    >
+                      Revoke
+                    </button>
+                  ) : null}
+                </div>
               </article>
             ))}
           </div>

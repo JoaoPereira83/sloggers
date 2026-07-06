@@ -130,7 +130,7 @@ function assertValidSupabaseKey(key: string) {
   }
 }
 
-function getSupabaseAdmin(): SupabaseClient {
+export function getSupabaseAdmin(): SupabaseClient {
   const { url, key } = getSupabaseConfig();
 
   if (!url || !key) {
@@ -215,8 +215,41 @@ export async function startRideInSupabase(input: {
   return mapRide(data as RideRow);
 }
 
+export async function ensureActiveRideInSupabase(): Promise<ActiveRide> {
+  const store = await readRideStoreFromSupabase();
+  if (store.ride?.status === "active") {
+    return store.ride;
+  }
+
+  return startRideInSupabase({
+    title: "Live tracking",
+    meetingLabel: "Southam",
+  });
+}
+
 export async function endRideInSupabase() {
   const supabase = getSupabaseAdmin();
+
+  const { data: activeRides, error: rideError } = await supabase
+    .from("rides")
+    .select("id")
+    .eq("status", "active");
+
+  if (rideError) throw new Error(toSupabaseErrorMessage(rideError.message));
+
+  const rideIds = ((activeRides ?? []) as { id: string }[]).map((ride) => ride.id);
+  if (rideIds.length === 0) {
+    return;
+  }
+
+  for (const rideId of rideIds) {
+    const { error: reportError } = await supabase.from("ride_reports").delete().eq("ride_id", rideId);
+    if (reportError) throw new Error(toSupabaseErrorMessage(reportError.message));
+
+    const { error: riderError } = await supabase.from("ride_riders").delete().eq("ride_id", rideId);
+    if (riderError) throw new Error(toSupabaseErrorMessage(riderError.message));
+  }
+
   const { error } = await supabase.from("rides").update({ status: "ended" }).eq("status", "active");
   if (error) throw new Error(toSupabaseErrorMessage(error.message));
 }
@@ -226,11 +259,8 @@ export async function joinRideInSupabase(
   currentRiderId?: string | null,
 ): Promise<RideRider> {
   const supabase = getSupabaseAdmin();
+  await ensureActiveRideInSupabase();
   const store = await readRideStoreFromSupabase();
-
-  if (!store.ride || store.ride.status !== "active") {
-    throw new Error("There is no active ride to join right now.");
-  }
 
   assertUniqueRideName(store.riders, name, currentRiderId);
 

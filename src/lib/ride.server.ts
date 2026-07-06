@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 
+import { requireApprovedMember } from "./member.server";
 import type { RideSession } from "./ride-session";
 import { rideSessionConfig } from "./ride-session";
 import type { RideReportType, RideSnapshot } from "./ride-types";
@@ -26,9 +27,20 @@ async function setCurrentRiderId(riderId: string | undefined) {
 }
 
 export const getRideSnapshot = createServerFn({ method: "GET" }).handler(async (): Promise<RideSnapshot> => {
+  await requireApprovedMember();
+
   const { getRideStore } = await import("./ride-store");
   const store = await getRideStore();
-  const currentRiderId = await getCurrentRiderId();
+  let currentRiderId = await getCurrentRiderId();
+
+  if (currentRiderId) {
+    const rideActive = store.ride?.status === "active";
+    const stillOnRide = store.riders.some((rider) => rider.id === currentRiderId);
+    if (!rideActive || !stillOnRide) {
+      await setCurrentRiderId(undefined);
+      currentRiderId = null;
+    }
+  }
 
   return {
     ride: store.ride,
@@ -39,10 +51,11 @@ export const getRideSnapshot = createServerFn({ method: "GET" }).handler(async (
 });
 
 export const joinRide = createServerFn({ method: "POST" })
-  .validator((data: { name: string }) => data)
+  .validator((data: { name?: string }) => data)
   .handler(async ({ data }) => {
+    const member = await requireApprovedMember();
     const { joinRideStore } = await import("./ride-store");
-    const name = normalizeRideName(data.name);
+    const name = normalizeRideName(data.name?.trim() || member.displayName);
     if (!name) throw new Error("Please enter your name.");
 
     const currentRiderId = await getCurrentRiderId();
@@ -52,6 +65,8 @@ export const joinRide = createServerFn({ method: "POST" })
   });
 
 export const leaveRide = createServerFn({ method: "POST" }).handler(async () => {
+  await requireApprovedMember();
+
   const { leaveRideStore } = await import("./ride-store");
   const riderId = await getCurrentRiderId();
   if (!riderId) return { ok: true as const };
@@ -64,6 +79,8 @@ export const leaveRide = createServerFn({ method: "POST" }).handler(async () => 
 export const updateRideLocation = createServerFn({ method: "POST" })
   .validator((data: { latitude: number; longitude: number; speedKmh?: number | null }) => data)
   .handler(async ({ data }) => {
+    await requireApprovedMember();
+
     const { updateRideLocationStore } = await import("./ride-store");
     const riderId = await getCurrentRiderId();
     if (!riderId) throw new Error("Join the ride before sharing your location.");
@@ -75,6 +92,8 @@ export const updateRideLocation = createServerFn({ method: "POST" })
 export const setRideSharing = createServerFn({ method: "POST" })
   .validator((data: { isSharing: boolean }) => data)
   .handler(async ({ data }) => {
+    await requireApprovedMember();
+
     const { setRideSharingStore } = await import("./ride-store");
     const riderId = await getCurrentRiderId();
     if (!riderId) throw new Error("Join the ride first.");
@@ -120,6 +139,8 @@ export const submitRideReport = createServerFn({ method: "POST" })
     }) => data,
   )
   .handler(async ({ data }) => {
+    await requireApprovedMember();
+
     const { submitRideReportStore } = await import("./ride-store");
     const riderId = await getCurrentRiderId();
     if (!riderId) throw new Error("Join the ride before sending a report.");
@@ -144,6 +165,8 @@ export const updateRideReport = createServerFn({ method: "POST" })
     }) => data,
   )
   .handler(async ({ data }) => {
+    await requireApprovedMember();
+
     const { updateRideReportStore } = await import("./ride-store");
     const riderId = await getCurrentRiderId();
     if (!riderId) throw new Error("Join the ride before updating a report.");
@@ -161,6 +184,8 @@ export const updateRideReport = createServerFn({ method: "POST" })
 export const deleteRideReport = createServerFn({ method: "POST" })
   .validator((data: { reportId: string }) => data)
   .handler(async ({ data }) => {
+    await requireApprovedMember();
+
     const { deleteRideReportStore } = await import("./ride-store");
     const riderId = await getCurrentRiderId();
     if (!riderId) throw new Error("Join the ride before deleting a report.");

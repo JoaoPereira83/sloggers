@@ -1,7 +1,5 @@
-import type { ActiveRide, RideReport, RideReportType, RideRider, RideStore } from "./ride-types";
-import { assertCanManageOwnReport, assertCanSubmitReport } from "./ride-reports";
-import { assertUniqueRideName, findRideRiderByName } from "./ride-names";
-import { computeSpeedKmh } from "./ride-utils";
+import { shouldAutoEndRide } from "./ride-expiry";
+import type { RideStore } from "./ride-types";
 
 const missingSupabaseMessage =
   "Live ride map needs Supabase on Vercel. Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel → Settings → Environment Variables, then redeploy.";
@@ -21,7 +19,7 @@ async function ensureStorageBackend() {
   }
 }
 
-async function readStore(): Promise<RideStore> {
+async function readStoreRaw(): Promise<RideStore> {
   await ensureStorageBackend();
   const { isSupabaseConfigured, readRideStoreFromSupabase } = await useSupabaseStore();
   if (isSupabaseConfigured()) {
@@ -36,14 +34,60 @@ async function writeStore(data: RideStore) {
   await writeRideStore(data);
 }
 
+async function expireActiveRideOnce(): Promise<boolean> {
+  const store = await readStoreRaw();
+  const ride = store.ride;
+
+  if (!ride || ride.status !== "active") {
+    return false;
+  }
+
+  if (!shouldAutoEndRide(ride.startedAt)) {
+    return false;
+  }
+
+  await endRideStore();
+  return true;
+}
+
+/** End forgotten rides at 23:59 UK time; run twice to clear any stragglers. */
+export async function expireActiveRideIfDue(): Promise<boolean> {
+  let ended = false;
+
+  for (let pass = 0; pass < 2; pass += 1) {
+    if (await expireActiveRideOnce()) {
+      ended = true;
+    }
+  }
+
+  return ended;
+}
+
+async function readStore(): Promise<RideStore> {
+  await expireActiveRideIfDue();
+  return readStoreRaw();
+}
+
 export async function getRideStore(): Promise<RideStore> {
   return readStore();
+}
+
+export async function ensureActiveRideStore(): Promise<import("./ride-types").ActiveRide> {
+  const store = await readStore();
+  if (store.ride?.status === "active") {
+    return store.ride;
+  }
+
+  return startRideStore({
+    title: "Live tracking",
+    meetingLabel: "Southam",
+  });
 }
 
 export async function startRideStore(input: {
   title: string;
   meetingLabel: string;
-}): Promise<ActiveRide> {
+}): Promise<import("./ride-types").ActiveRide> {
   await ensureStorageBackend();
   const { isSupabaseConfigured, startRideInSupabase } = await useSupabaseStore();
   if (isSupabaseConfigured()) {
@@ -85,19 +129,18 @@ export async function endRideStore() {
 export async function joinRideStore(
   name: string,
   currentRiderId?: string | null,
-): Promise<RideRider> {
+): Promise<import("./ride-types").RideRider> {
   const { isSupabaseConfigured, joinRideInSupabase } = await useSupabaseStore();
   if (isSupabaseConfigured()) {
     return joinRideInSupabase(name, currentRiderId);
   }
 
+  await ensureActiveRideStore();
+
   const { randomUUID } = await import("node:crypto");
   const store = await readStore();
 
-  if (!store.ride || store.ride.status !== "active") {
-    throw new Error("There is no active ride to join right now.");
-  }
-
+  const { assertUniqueRideName, findRideRiderByName } = await import("./ride-names");
   assertUniqueRideName(store.riders, name, currentRiderId);
 
   const existing = findRideRiderByName(store.riders, name);
@@ -107,7 +150,7 @@ export async function joinRideStore(
     return existing;
   }
 
-  const rider: RideRider = {
+  const rider: import("./ride-types").RideRider = {
     id: randomUUID(),
     name,
     joinedAt: new Date().toISOString(),
@@ -155,6 +198,7 @@ export async function updateRideLocationStore(
   const rider = store.riders.find((entry) => entry.id === riderId);
   if (!rider) throw new Error("You are not on this ride.");
 
+  const { computeSpeedKmh } = await import("./ride-utils");
   const updatedAt = new Date().toISOString();
   const nextSpeed = computeSpeedKmh({
     previous:
@@ -197,21 +241,22 @@ export async function setRideSharingStore(riderId: string, isSharing: boolean) {
 
 export async function submitRideReportStore(input: {
   riderId: string;
-  type: RideReportType;
+  type: import("./ride-types").RideReportType;
   message?: string | null;
   latitude?: number | null;
   longitude?: number | null;
-}): Promise<RideReport> {
+}): Promise<import("./ride-types").RideReport> {
   const { isSupabaseConfigured, submitRideReportInSupabase } = await useSupabaseStore();
   if (isSupabaseConfigured()) {
     return submitRideReportInSupabase(input);
   }
 
   const { randomUUID } = await import("node:crypto");
+  const { assertCanSubmitReport } = await import("./ride-reports");
   const store = await readStore();
   const rider = assertCanSubmitReport(store, input.riderId);
 
-  const report: RideReport = {
+  const report: import("./ride-types").RideReport = {
     id: randomUUID(),
     rideId: store.ride!.id,
     riderId: rider.id,
@@ -231,16 +276,17 @@ export async function submitRideReportStore(input: {
 export async function updateRideReportStore(input: {
   reportId: string;
   riderId: string;
-  type: RideReportType;
+  type: import("./ride-types").RideReportType;
   message?: string | null;
   latitude?: number | null;
   longitude?: number | null;
-}): Promise<RideReport> {
+}): Promise<import("./ride-types").RideReport> {
   const { isSupabaseConfigured, updateRideReportInSupabase } = await useSupabaseStore();
   if (isSupabaseConfigured()) {
     return updateRideReportInSupabase(input);
   }
 
+  const { assertCanManageOwnReport } = await import("./ride-reports");
   const store = await readStore();
   const { rider, report } = assertCanManageOwnReport(store, input.riderId, input.reportId);
 
@@ -261,6 +307,7 @@ export async function deleteRideReportStore(reportId: string, riderId: string) {
     return;
   }
 
+  const { assertCanManageOwnReport } = await import("./ride-reports");
   const store = await readStore();
   assertCanManageOwnReport(store, riderId, reportId);
   store.reports = (store.reports ?? []).filter((report) => report.id !== reportId);

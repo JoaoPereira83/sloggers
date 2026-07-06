@@ -1,5 +1,15 @@
 {
   "framework": "tanstack-start",
   "buildCommand": "npm run build",
-  "installCommand": "npm install"
+  "installCommand": "npm install",
+  "crons": [
+    {
+      "path": "/api/cron/expire-rides",
+      "schedule": "59 23 * * *"
+    },
+    {
+      "path": "/api/cron/expire-rides",
+      "schedule": "0 0 * * *"
+    }
+  ]
 }

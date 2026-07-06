@@ -46,6 +46,21 @@ function isH3SwallowedErrorBody(body: string): boolean {
 
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
+    const { pathname } = new URL(request.url);
+    if (pathname === "/api/cron/expire-rides") {
+      const cronSecret = process.env.CRON_SECRET?.trim();
+      if (cronSecret) {
+        const auth = request.headers.get("authorization");
+        if (auth !== `Bearer ${cronSecret}`) {
+          return new Response("Unauthorized", { status: 401 });
+        }
+      }
+
+      const { expireActiveRideIfDue } = await import("./lib/ride-store");
+      const ended = await expireActiveRideIfDue();
+      return Response.json({ ok: true, ended });
+    }
+
     try {
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
