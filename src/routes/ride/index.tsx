@@ -449,21 +449,6 @@ function RidePage() {
             </>
           ) : (
             <>
-              <div className="sticky top-[calc(4.75rem+env(safe-area-inset-top))] z-30 -mx-4 border-b border-border/60 bg-background/95 px-4 py-3 backdrop-blur-md sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:backdrop-blur-none">
-                <SharingControls
-                  riderName={currentRider?.name ?? member?.displayName ?? null}
-                  isSharing={isSharing}
-                  locationError={locationError}
-                  shareError={
-                    sharingMutation.error instanceof Error ? sharingMutation.error.message : null
-                  }
-                  onToggleSharing={(next) => sharingMutation.mutate(next)}
-                  onLeave={() => leaveMutation.mutate()}
-                  isSharingUpdating={sharingMutation.isPending}
-                  isLeaving={leaveMutation.isPending}
-                />
-              </div>
-
               <MobileRideTabs
                 active={mobileTab}
                 onChange={setMobileTab}
@@ -508,9 +493,36 @@ function RidePage() {
                     {reportsFeed}
                   </div>
                 ) : null}
+
+                <div className="mt-4">
+                  <SharingControls
+                    riderName={currentRider?.name ?? member?.displayName ?? null}
+                    isSharing={isSharing}
+                    locationError={locationError}
+                    shareError={
+                      sharingMutation.error instanceof Error ? sharingMutation.error.message : null
+                    }
+                    onToggleSharing={(next) => sharingMutation.mutate(next)}
+                    onLeave={() => leaveMutation.mutate()}
+                    isSharingUpdating={sharingMutation.isPending}
+                    isLeaving={leaveMutation.isPending}
+                  />
+                </div>
               </div>
 
               <div className="hidden space-y-6 lg:block">
+                <SharingControls
+                  riderName={currentRider?.name ?? member?.displayName ?? null}
+                  isSharing={isSharing}
+                  locationError={locationError}
+                  shareError={
+                    sharingMutation.error instanceof Error ? sharingMutation.error.message : null
+                  }
+                  onToggleSharing={(next) => sharingMutation.mutate(next)}
+                  onLeave={() => leaveMutation.mutate()}
+                  isSharingUpdating={sharingMutation.isPending}
+                  isLeaving={leaveMutation.isPending}
+                />
                 <RideMap
                   riders={snapshot?.riders ?? []}
                   selectedRiderId={selectedRiderId}
@@ -598,7 +610,7 @@ function MobileRideTabs({
   ];
 
   return (
-    <div className="sticky top-[calc(8.5rem+env(safe-area-inset-top))] z-20 -mx-4 border-b border-border/60 bg-background/95 px-4 py-2 backdrop-blur-md lg:hidden">
+    <div className="sticky top-[calc(4.75rem+env(safe-area-inset-top))] z-20 -mx-4 border-b border-border/60 bg-background/95 px-4 py-2 backdrop-blur-md lg:hidden">
       <div className="grid grid-cols-4 gap-1 rounded-2xl border border-border bg-muted/40 p-1">
         {tabs.map((tab) => {
           const Icon = tab.icon;
