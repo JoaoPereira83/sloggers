@@ -1,3 +1,5 @@
+import { JOIN_FORM_EMAIL } from "@/config/site";
+
 const EXPERIENCE_LABELS: Record<string, string> = {
   new: "New to road cycling",
   returning: "Returning after a break",
@@ -35,17 +37,13 @@ function normalizeJoinRequest(data: JoinRequest) {
 }
 
 function getRecipientEmail() {
-  const email =
-    import.meta.env.VITE_FORMSUBMIT_EMAIL?.trim() ||
-    import.meta.env.VITE_JOIN_FORM_EMAIL?.trim();
-
-  if (!email) {
+  if (!JOIN_FORM_EMAIL) {
     throw new Error(
       "The join form is not set up yet. Please try again later or contact the club directly.",
     );
   }
 
-  return email;
+  return JOIN_FORM_EMAIL;
 }
 
 export async function submitJoinForm(data: JoinRequest) {

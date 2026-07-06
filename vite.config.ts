@@ -16,4 +16,11 @@ export default defineConfig({
   nitro: {
     preset: "vercel",
   },
+  vite: {
+    define: {
+      "import.meta.env.FORMSUBMIT_EMAIL": JSON.stringify(
+        process.env.VITE_FORMSUBMIT_EMAIL ?? process.env.FORMSUBMIT_EMAIL ?? "",
+      ),
+    },
+  },
 });
