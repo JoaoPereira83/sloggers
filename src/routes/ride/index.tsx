@@ -220,24 +220,37 @@ function RidePage() {
   }, [isSharing]);
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <SiteNav />
-      <main className="mx-auto max-w-6xl px-6 pt-28 pb-24">
-        <div className="max-w-3xl">
+    <div className="min-h-[100dvh] bg-background text-foreground">
+      <SiteNav compact={isJoined && isActive} />
+      <main
+        className="mx-auto max-w-6xl px-4 pb-[max(5rem,env(safe-area-inset-bottom))] pt-[calc(5.5rem+env(safe-area-inset-top))] sm:px-6 sm:pb-24 sm:pt-28"
+      >
+        <div className={`max-w-3xl ${isJoined && isActive ? "hidden sm:block" : ""}`}>
           <div className="text-xs font-semibold uppercase tracking-[0.3em] text-primary">
             Ride day
           </div>
-          <h1 className="mt-3 display text-5xl leading-none md:text-7xl">Live ride map</h1>
-          <p className="mt-4 text-lg text-muted-foreground">
+          <h1 className="mt-2 display text-4xl leading-none sm:mt-3 sm:text-5xl md:text-7xl">
+            Live ride map
+          </h1>
+          <p className="mt-3 text-base text-muted-foreground sm:mt-4 sm:text-lg">
             Join this Sunday&apos;s ride to share your location with other Sloggers. Perfect when
             the group splits and you&apos;re waiting at the cafe.
           </p>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p className="mt-2 hidden text-sm text-muted-foreground sm:block">
             Add this page to your phone&apos;s home screen for quick access — no app store needed.
           </p>
         </div>
 
-        <div className="mt-10 space-y-6">
+        {isJoined && isActive ? (
+          <div className="mb-4 sm:hidden">
+            <h1 className="display text-3xl leading-none">Live ride map</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {snapshot?.ride?.title ?? "Sunday ride"} · {snapshot?.riders.length ?? 0} riders
+            </p>
+          </div>
+        ) : null}
+
+        <div className={`space-y-4 sm:mt-10 sm:space-y-6 ${isJoined && isActive ? "mt-4" : "mt-8 sm:mt-10"}`}>
           <StatusBanner rideTitle={snapshot?.ride?.title} isActive={isActive} riderCount={snapshot?.riders.length ?? 0} />
 
           {!isActive ? (
@@ -260,13 +273,40 @@ function RidePage() {
             />
           ) : (
             <>
-              <SharingControls
-                isSharing={isSharing}
-                locationError={locationError}
-                onToggleSharing={(next) => sharingMutation.mutate(next)}
-                onLeave={() => leaveMutation.mutate()}
-                isUpdating={sharingMutation.isPending || leaveMutation.isPending}
+              <div className="sticky top-[calc(4.75rem+env(safe-area-inset-top))] z-30 -mx-4 border-b border-border/60 bg-background/95 px-4 py-3 backdrop-blur-md sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:backdrop-blur-none">
+                <SharingControls
+                  isSharing={isSharing}
+                  locationError={locationError}
+                  onToggleSharing={(next) => sharingMutation.mutate(next)}
+                  onLeave={() => leaveMutation.mutate()}
+                  isUpdating={sharingMutation.isPending || leaveMutation.isPending}
+                />
+              </div>
+
+              <RideMap
+                riders={snapshot?.riders ?? []}
+                selectedRiderId={selectedRiderId}
+                currentRiderId={snapshot?.currentRiderId ?? null}
+                onSelectRider={setSelectedRiderId}
               />
+
+              <div className="grid gap-4 sm:gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+                <div className={selectedRider ? "hidden lg:block" : "block"}>
+                  <RiderList
+                    riders={snapshot?.riders ?? []}
+                    currentRiderId={snapshot?.currentRiderId ?? null}
+                    selectedRiderId={selectedRiderId}
+                    onSelectRider={setSelectedRiderId}
+                  />
+                </div>
+                <div className={selectedRider ? "block" : "hidden lg:block"}>
+                  <RiderDetail
+                    rider={selectedRider}
+                    currentRider={currentRider}
+                    onClear={() => setSelectedRiderId(null)}
+                  />
+                </div>
+              </div>
 
               <ReportPanel
                 isSharing={isSharing}
@@ -330,27 +370,6 @@ function RidePage() {
                   }
                 />
               ) : null}
-
-              <RideMap
-                riders={snapshot?.riders ?? []}
-                selectedRiderId={selectedRiderId}
-                currentRiderId={snapshot?.currentRiderId ?? null}
-                onSelectRider={setSelectedRiderId}
-              />
-
-              <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-                <RiderList
-                  riders={snapshot?.riders ?? []}
-                  currentRiderId={snapshot?.currentRiderId ?? null}
-                  selectedRiderId={selectedRiderId}
-                  onSelectRider={setSelectedRiderId}
-                />
-                <RiderDetail
-                  rider={selectedRider}
-                  currentRider={currentRider}
-                  onClear={() => setSelectedRiderId(null)}
-                />
-              </div>
             </>
           )}
 
@@ -367,7 +386,7 @@ function RidePage() {
           ) : null}
         </div>
       </main>
-      <SiteFooter />
+      <SiteFooter compact={isJoined && isActive} />
     </div>
   );
 }
@@ -382,7 +401,7 @@ function StatusBanner({
   riderCount: number;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-4 rounded-3xl border border-border bg-card px-6 py-4 shadow-soft">
+    <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card px-4 py-3 shadow-soft sm:flex-row sm:flex-wrap sm:items-center sm:gap-4 sm:rounded-3xl sm:px-6 sm:py-4">
       <div className="inline-flex items-center gap-2 text-sm font-medium">
         <Radio className={`h-4 w-4 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
         {isActive ? `${rideTitle ?? "Sunday ride"} is live` : "No active ride right now"}
@@ -410,13 +429,13 @@ function JoinCard({
 }) {
   return (
     <form
-      className="max-w-md rounded-3xl border border-border bg-card p-8 shadow-soft"
+      className="w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-soft sm:rounded-3xl sm:p-8"
       onSubmit={(event) => {
         event.preventDefault();
         onJoin();
       }}
     >
-      <h2 className="display text-3xl">Join this Sunday&apos;s ride</h2>
+      <h2 className="display text-2xl sm:text-3xl">Join this Sunday&apos;s ride</h2>
       <p className="mt-2 text-sm text-muted-foreground">
         Your location will only be visible to other riders who joined this ride. Names must be
         unique — if someone is already using yours, add an initial or nickname.
@@ -429,13 +448,13 @@ function JoinCard({
         onChange={(event) => onNameChange(event.target.value)}
         placeholder="How the group knows you"
         required
-        className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3"
+        className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 text-base"
       />
       {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}
       <button
         type="submit"
         disabled={isJoining}
-        className="mt-6 inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold uppercase tracking-wider text-primary-foreground"
+        className="mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold uppercase tracking-wider text-primary-foreground sm:w-auto"
       >
         {isJoining ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
         I&apos;m in today
@@ -458,12 +477,12 @@ function SharingControls({
   isUpdating: boolean;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-3xl border border-border bg-card px-5 py-4">
+    <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 shadow-soft sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 sm:rounded-3xl sm:px-5 sm:py-4">
       <button
         type="button"
         disabled={isUpdating}
         onClick={() => onToggleSharing(!isSharing)}
-        className={`inline-flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold uppercase tracking-wider ${
+        className={`inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold uppercase tracking-wider sm:w-auto ${
           isSharing
             ? "bg-primary text-primary-foreground"
             : "border border-border bg-background text-foreground"
@@ -476,7 +495,7 @@ function SharingControls({
         type="button"
         disabled={isUpdating}
         onClick={onLeave}
-        className="rounded-full border border-border px-5 py-2 text-sm font-medium text-muted-foreground"
+        className="min-h-11 w-full rounded-full border border-border px-5 py-2.5 text-sm font-medium text-muted-foreground sm:w-auto"
       >
         Leave ride
       </button>
@@ -503,8 +522,8 @@ function RiderList({
   onSelectRider: (riderId: string) => void;
 }) {
   return (
-    <section className="rounded-3xl border border-border bg-card p-6 shadow-soft">
-      <h2 className="display text-3xl">Group</h2>
+    <section className="rounded-2xl border border-border bg-card p-4 shadow-soft sm:rounded-3xl sm:p-6">
+      <h2 className="display text-2xl sm:text-3xl">Group</h2>
       <p className="mt-1 text-sm text-muted-foreground">Tap a rider for individual tracking.</p>
       <div className="mt-4 space-y-3">
         {riders.length === 0 ? (
@@ -515,7 +534,7 @@ function RiderList({
               key={rider.id}
               type="button"
               onClick={() => onSelectRider(rider.id)}
-              className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${
+              className={`flex w-full min-h-11 items-center justify-between rounded-2xl border px-4 py-3 text-left transition active:scale-[0.99] ${
                 selectedRiderId === rider.id
                   ? "border-primary bg-primary/5"
                   : "border-border hover:bg-muted/40"
@@ -555,8 +574,8 @@ function RiderDetail({
 }) {
   if (!rider) {
     return (
-      <section className="rounded-3xl border border-dashed border-border bg-muted/20 p-6">
-        <h2 className="display text-3xl">Individual tracker</h2>
+      <section className="rounded-2xl border border-dashed border-border bg-muted/20 p-4 sm:rounded-3xl sm:p-6">
+        <h2 className="display text-2xl sm:text-3xl">Individual tracker</h2>
         <p className="mt-2 text-sm text-muted-foreground">
           Select a rider from the group list or tap their marker on the map.
         </p>
@@ -585,10 +604,10 @@ function RiderDetail({
       : null;
 
   return (
-    <section className="rounded-3xl border border-border bg-card p-6 shadow-soft">
+    <section className="rounded-2xl border border-border bg-card p-4 shadow-soft sm:rounded-3xl sm:p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="display text-3xl">{rider.name}</h2>
+          <h2 className="display text-2xl sm:text-3xl">{rider.name}</h2>
           <p className="mt-1 text-sm text-muted-foreground">Individual tracker</p>
         </div>
         <button
@@ -669,9 +688,9 @@ function ReportPanel({
   error: string | null;
 }) {
   return (
-    <div className="rounded-3xl border border-border bg-card px-5 py-4 shadow-soft">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
+    <div className="rounded-2xl border border-border bg-card px-4 py-4 shadow-soft sm:rounded-3xl sm:px-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h2 className="text-sm font-semibold uppercase tracking-widest text-primary">
             Need help?
           </h2>
@@ -686,7 +705,7 @@ function ReportPanel({
           type="button"
           onClick={onToggleForm}
           disabled={!isSharing}
-          className="inline-flex items-center gap-2 rounded-full border border-destructive/30 bg-destructive/5 px-5 py-2 text-sm font-semibold uppercase tracking-wider text-destructive disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-destructive/30 bg-destructive/5 px-5 py-2.5 text-sm font-semibold uppercase tracking-wider text-destructive disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
         >
           <TriangleAlert className="h-4 w-4" />
           {showForm ? "Cancel report" : "Report an issue"}
@@ -772,11 +791,11 @@ function ReportFormFields({
         className="w-full rounded-xl border border-input bg-background px-4 py-3"
       />
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
         <button
           type="submit"
           disabled={isSubmitting}
-          className="inline-flex items-center gap-2 rounded-full bg-destructive px-6 py-3 text-sm font-semibold uppercase tracking-wider text-destructive-foreground"
+          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-destructive px-6 py-3 text-sm font-semibold uppercase tracking-wider text-destructive-foreground sm:w-auto"
         >
           {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <TriangleAlert className="h-4 w-4" />}
           {submitLabel}
@@ -785,7 +804,7 @@ function ReportFormFields({
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-full border border-border px-6 py-3 text-sm font-medium text-muted-foreground"
+            className="min-h-11 w-full rounded-full border border-border px-6 py-3 text-sm font-medium text-muted-foreground sm:w-auto"
           >
             Cancel
           </button>
@@ -833,8 +852,8 @@ function ReportsFeed({
   deleteError: string | null;
 }) {
   return (
-    <section className="rounded-3xl border border-destructive/20 bg-destructive/5 p-6 shadow-soft">
-      <h2 className="display text-3xl">Ride reports</h2>
+    <section className="rounded-2xl border border-destructive/20 bg-destructive/5 p-4 shadow-soft sm:rounded-3xl sm:p-6">
+      <h2 className="display text-2xl sm:text-3xl">Ride reports</h2>
       <p className="mt-1 text-sm text-muted-foreground">
         Alerts from riders on today&apos;s ride. Tap one to locate them on the map.
       </p>

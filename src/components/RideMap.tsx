@@ -222,8 +222,8 @@ export function RideMap({
   }, [mappableRiders, selectedRiderId]);
 
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-border bg-muted/30">
-      <div ref={containerRef} className="h-[420px] w-full" />
+    <div className="relative overflow-hidden rounded-2xl border border-border bg-muted/30 sm:rounded-3xl">
+      <div ref={containerRef} className="h-[min(58dvh,32rem)] min-h-[280px] w-full sm:h-[420px] md:h-[480px]" />
       {mappableRiders.length === 0 ? (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/70 px-6 text-center text-sm text-muted-foreground">
           Waiting for riders to share their location…
