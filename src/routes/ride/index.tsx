@@ -134,9 +134,48 @@ function RidePage() {
     },
   });
 
+  const pushLocation = useCallback(
+    async (latitude: number, longitude: number, speedMs?: number | null) => {
+      try {
+        const speedKmh =
+          speedMs != null && speedMs >= 0 ? Math.round(speedMs * 3.6 * 10) / 10 : undefined;
+        await updateRideLocation({ data: { latitude, longitude, speedKmh } });
+        setLocationError(null);
+      } catch (error) {
+        setLocationError(error instanceof Error ? error.message : "Could not update location.");
+      }
+    },
+    [],
+  );
+
+  const requestInitialLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      setLocationError("Location is not supported on this device.");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        void pushLocation(
+          position.coords.latitude,
+          position.coords.longitude,
+          position.coords.speed,
+        );
+      },
+      (error) => {
+        setLocationError(error.message || "Location permission denied.");
+      },
+      { enableHighAccuracy: true, maximumAge: 15_000, timeout: 20_000 },
+    );
+  }, [pushLocation]);
+
   const joinMutation = useMutation({
     mutationFn: (riderName: string) => joinRide({ data: { name: riderName } }),
-    onSuccess: () => invalidate(),
+    onSuccess: () => {
+      setMobileTab("map");
+      invalidate();
+      requestInitialLocation();
+    },
   });
 
   const leaveMutation = useMutation({
@@ -147,10 +186,14 @@ function RidePage() {
     },
   });
 
-
   const sharingMutation = useMutation({
     mutationFn: (nextSharing: boolean) => setRideSharing({ data: { isSharing: nextSharing } }),
-    onSuccess: () => invalidate(),
+    onSuccess: (_result, nextSharing) => {
+      invalidate();
+      if (nextSharing) {
+        requestInitialLocation();
+      }
+    },
   });
 
   const reportMutation = useMutation({
@@ -190,20 +233,6 @@ function RidePage() {
       invalidate();
     },
   });
-
-  const pushLocation = useCallback(
-    async (latitude: number, longitude: number, speedMs?: number | null) => {
-      try {
-        const speedKmh =
-          speedMs != null && speedMs >= 0 ? Math.round(speedMs * 3.6 * 10) / 10 : undefined;
-        await updateRideLocation({ data: { latitude, longitude, speedKmh } });
-        setLocationError(null);
-      } catch (error) {
-        setLocationError(error instanceof Error ? error.message : "Could not update location.");
-      }
-    },
-    [],
-  );
 
   useEffect(() => {
     if (!hasStaleSession || !isActive) return;
@@ -721,19 +750,19 @@ function JoinCard({
         </p>
       ) : compact ? (
         <p className="mt-3 text-base leading-relaxed text-foreground/85 sm:text-sm sm:text-muted-foreground">
-          Join the ride map when you want other riders to see you. You can keep watching without
-          sharing your location.
+          Tap below to join and share your location on the map. One step — your phone will ask for
+          location permission.
         </p>
       ) : waitingForRiders ? (
         <p className="mt-3 text-base leading-relaxed text-foreground/85 sm:text-sm sm:text-muted-foreground">
-          No one is sharing yet. Join below, then tap <span className="font-medium text-foreground">Share my location</span> to
-          start the live map for everyone else.
+          No one is sharing yet. Tap below to join and appear on the map straight away. Your phone
+          will ask for location permission once.
         </p>
       ) : (
         <p className="mt-3 text-base leading-relaxed text-foreground/85 sm:text-sm sm:text-muted-foreground">
           {othersSharing
-            ? `${othersSharing} rider${othersSharing === 1 ? " is" : "s are"} already sharing. Join when you want to appear on the map.`
-            : "Join the ride map when you're ready to share your location with other approved Sloggers."}
+            ? `${othersSharing} rider${othersSharing === 1 ? " is" : "s are"} already sharing. Tap below to join and appear on the map.`
+            : "Tap below to join and share your location with other approved Sloggers."}
           {" "}Names must be unique — add an initial or nickname if yours is taken.
         </p>
       )}
@@ -773,14 +802,8 @@ function JoinCard({
         className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-3.5 text-base font-semibold uppercase tracking-wider text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-11 sm:w-auto sm:text-sm"
       >
         {isJoining ? <Loader2 className="h-5 w-5 animate-spin" /> : <MapPin className="h-5 w-5" />}
-        Join ride map
+        Join and share location
       </button>
-      {waitingForRiders ? (
-        <p className="mt-3 text-xs text-muted-foreground">
-          Step 2 after joining: tap <span className="font-medium text-foreground">Share my location</span> and
-          allow location access on your phone.
-        </p>
-      ) : null}
     </form>
   );
 }

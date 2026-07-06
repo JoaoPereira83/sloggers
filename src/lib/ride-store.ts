@@ -145,6 +145,7 @@ export async function joinRideStore(
 
   const existing = findRideRiderByName(store.riders, name);
   if (existing && existing.id === currentRiderId) {
+    existing.isSharing = true;
     await writeStore(store);
     return existing;
   }
@@ -157,7 +158,7 @@ export async function joinRideStore(
     longitude: null,
     updatedAt: null,
     speedKmh: null,
-    isSharing: false,
+    isSharing: true,
   };
 
   store.riders.push(rider);

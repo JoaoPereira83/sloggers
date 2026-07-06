@@ -266,7 +266,17 @@ export async function joinRideInSupabase(
 
   const existing = findRideRiderByName(store.riders, name);
   if (existing && existing.id === currentRiderId) {
-    return existing;
+    const { data, error } = await supabase
+      .from("ride_riders")
+      .update({ is_sharing: true })
+      .eq("id", existing.id)
+      .select("*")
+      .single();
+
+    if (error || !data) {
+      throw new Error(toSupabaseErrorMessage(error?.message ?? "Could not rejoin ride."));
+    }
+    return mapRider(data as RiderRow);
   }
 
   const { data, error } = await supabase
@@ -274,7 +284,7 @@ export async function joinRideInSupabase(
     .insert({
       ride_id: store.ride.id,
       name,
-      is_sharing: false,
+      is_sharing: true,
     })
     .select("*")
     .single();
