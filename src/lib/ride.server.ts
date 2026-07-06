@@ -193,3 +193,13 @@ export const deleteRideReport = createServerFn({ method: "POST" })
     await deleteRideReportStore(data.reportId, riderId);
     return { ok: true as const };
   });
+
+export const getRiderStreetLocation = createServerFn({ method: "POST" })
+  .validator((data: { latitude: number; longitude: number }) => data)
+  .handler(async ({ data }) => {
+    await requireApprovedMember();
+
+    const { reverseGeocodeLocation } = await import("./reverse-geocode");
+    const label = await reverseGeocodeLocation(data.latitude, data.longitude);
+    return { label };
+  });

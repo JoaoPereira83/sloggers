@@ -13,6 +13,7 @@ import {
 } from "@/lib/member.server";
 import {
   getRideSnapshot,
+  getRiderStreetLocation,
   joinRide,
   leaveRide,
   deleteRideReport,
@@ -970,17 +971,51 @@ function RiderDetail({
           </div>
         ) : null}
         {rider.latitude != null && rider.longitude != null ? (
-          <div>
-            <dt className="text-xs uppercase tracking-widest text-muted-foreground">Coordinates</dt>
-            <dd className="mt-1 font-medium">
-              {rider.latitude.toFixed(5)}, {rider.longitude.toFixed(5)}
-            </dd>
-          </div>
+          <RiderStreetLocation latitude={rider.latitude} longitude={rider.longitude} />
         ) : (
           <p className="text-muted-foreground">No location received yet.</p>
         )}
       </dl>
     </section>
+  );
+}
+
+function RiderStreetLocation({
+  latitude,
+  longitude,
+}: {
+  latitude: number;
+  longitude: number;
+}) {
+  const locationQuery = useQuery({
+    queryKey: ["rider-street-location", latitude.toFixed(4), longitude.toFixed(4)],
+    queryFn: () => getRiderStreetLocation({ data: { latitude, longitude } }),
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const streetLabel = locationQuery.data?.label ?? null;
+
+  return (
+    <div>
+      <dt className="text-xs uppercase tracking-widest text-muted-foreground">Location</dt>
+      <dd className="mt-1 font-medium">
+        {locationQuery.isPending && !streetLabel ? (
+          <span className="inline-flex items-center gap-2 text-muted-foreground">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            Looking up street…
+          </span>
+        ) : streetLabel ? (
+          streetLabel
+        ) : (
+          `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`
+        )}
+      </dd>
+      {streetLabel ? (
+        <dd className="mt-1 text-xs text-muted-foreground">
+          {latitude.toFixed(5)}, {longitude.toFixed(5)}
+        </dd>
+      ) : null}
+    </div>
   );
 }
 
