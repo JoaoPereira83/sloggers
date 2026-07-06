@@ -10,6 +10,55 @@ type RideMapProps = {
   onSelectRider: (riderId: string) => void;
 };
 
+function bikeMarkerHtml(options: {
+  label: string;
+  fill: string;
+  stroke: string;
+  labelColor: string;
+  selected: boolean;
+}) {
+  const { label, fill, stroke, labelColor, selected } = options;
+
+  return `<div style="
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:4px;
+    transform:translate(-50%, calc(-100% - 4px));
+    pointer-events:none;
+  ">
+    <div style="
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      width:${selected ? 44 : 40}px;
+      height:${selected ? 44 : 40}px;
+      background:${fill};
+      border:2px solid ${stroke};
+      border-radius:9999px;
+      box-shadow:0 8px 24px rgba(42,18,56,.28);
+    ">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${labelColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="18.5" cy="17.5" r="3.5"></circle>
+        <circle cx="5.5" cy="17.5" r="3.5"></circle>
+        <circle cx="15" cy="5" r="1"></circle>
+        <path d="M12 17.5V14l-3-3 4-3 2 3h2"></path>
+      </svg>
+    </div>
+    <div style="
+      background:rgba(255,255,255,.96);
+      color:${labelColor};
+      border:1px solid ${stroke};
+      border-radius:9999px;
+      padding:3px 8px;
+      font:600 11px/1.2 Barlow, sans-serif;
+      box-shadow:0 4px 12px rgba(42,18,56,.18);
+      white-space:nowrap;
+      pointer-events:auto;
+    ">${label}</div>
+  </div>`;
+}
+
 export function RideMap({
   riders,
   selectedRiderId,
@@ -19,6 +68,8 @@ export function RideMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const markersRef = useRef<Map<string, LeafletMarker>>(new Map());
+  const initialFrameDoneRef = useRef(false);
+  const lastFollowedRiderRef = useRef<string | null>(null);
 
   const mappableRiders = riders.filter(
     (rider) => rider.latitude != null && rider.longitude != null,
@@ -55,6 +106,8 @@ export function RideMap({
       mapRef.current?.remove();
       mapRef.current = null;
       markersRef.current.clear();
+      initialFrameDoneRef.current = false;
+      lastFollowedRiderRef.current = null;
     };
   }, []);
 
@@ -86,17 +139,13 @@ export function RideMap({
 
         const icon = L.divIcon({
           className: "",
-          html: `<div style="
-            transform: translate(-50%, -50%);
-            background:${isSelected ? "#c96bff" : isYou ? "#ffffff" : "#5c2d82"};
-            color:${isSelected || !isYou ? "#2a1238" : "#5c2d82"};
-            border:2px solid ${isSelected ? "#ffffff" : "#c96bff"};
-            border-radius:9999px;
-            padding:6px 10px;
-            font:600 12px/1.2 Barlow, sans-serif;
-            box-shadow:0 8px 24px rgba(42,18,56,.25);
-            white-space:nowrap;
-          ">${label}</div>`,
+          html: bikeMarkerHtml({
+            label,
+            fill: isSelected ? "#c96bff" : isYou ? "#ffffff" : "#5c2d82",
+            stroke: isSelected ? "#ffffff" : "#c96bff",
+            labelColor: isSelected || !isYou ? "#2a1238" : "#5c2d82",
+            selected: isSelected,
+          }),
           iconSize: [0, 0],
         });
 
@@ -110,30 +159,6 @@ export function RideMap({
           markersRef.current.set(rider.id, marker);
         }
       }
-
-      if (selectedRiderId) {
-        const selected = mappableRiders.find((rider) => rider.id === selectedRiderId);
-        if (selected) {
-          map.setView([selected.latitude!, selected.longitude!], Math.max(map.getZoom(), 13), {
-            animate: true,
-          });
-          return;
-        }
-      }
-
-      if (mappableRiders.length === 1) {
-        map.setView([mappableRiders[0].latitude!, mappableRiders[0].longitude!], 13, {
-          animate: true,
-        });
-        return;
-      }
-
-      if (mappableRiders.length > 1) {
-        const bounds = L.latLngBounds(
-          mappableRiders.map((rider) => [rider.latitude!, rider.longitude!] as [number, number]),
-        );
-        map.fitBounds(bounds.pad(0.2), { animate: true });
-      }
     }
 
     void syncMarkers();
@@ -142,6 +167,59 @@ export function RideMap({
       cancelled = true;
     };
   }, [mappableRiders, selectedRiderId, currentRiderId, onSelectRider]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function syncViewport() {
+      const map = mapRef.current;
+      if (!map || mappableRiders.length === 0 || cancelled) return;
+
+      const L = await import("leaflet");
+      if (cancelled) return;
+
+      if (selectedRiderId) {
+        const selected = mappableRiders.find((rider) => rider.id === selectedRiderId);
+        if (!selected) return;
+
+        const lat = selected.latitude!;
+        const lng = selected.longitude!;
+        const zoom = map.getZoom();
+
+        if (lastFollowedRiderRef.current !== selectedRiderId) {
+          map.setView([lat, lng], zoom, { animate: true });
+          lastFollowedRiderRef.current = selectedRiderId;
+          return;
+        }
+
+        map.panTo([lat, lng], { animate: true });
+        return;
+      }
+
+      lastFollowedRiderRef.current = null;
+
+      if (initialFrameDoneRef.current) return;
+
+      if (mappableRiders.length === 1) {
+        map.setView([mappableRiders[0].latitude!, mappableRiders[0].longitude!], 14, {
+          animate: false,
+        });
+      } else {
+        const bounds = L.latLngBounds(
+          mappableRiders.map((rider) => [rider.latitude!, rider.longitude!] as [number, number]),
+        );
+        map.fitBounds(bounds.pad(0.2), { animate: false });
+      }
+
+      initialFrameDoneRef.current = true;
+    }
+
+    void syncViewport();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mappableRiders, selectedRiderId]);
 
   return (
     <div className="relative overflow-hidden rounded-3xl border border-border bg-muted/30">
