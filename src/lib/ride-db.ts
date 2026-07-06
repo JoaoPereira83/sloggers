@@ -75,6 +75,10 @@ export function toSupabaseErrorMessage(message: string) {
     return supabaseUrlHint;
   }
 
+  if (message.includes("row-level security policy")) {
+    return "Database permissions blocked the ride. In Supabase SQL Editor run: alter table public.rides disable row level security; alter table public.ride_riders disable row level security; Also make sure Vercel uses your Secret key (sb_secret_...), not the publishable key.";
+  }
+
   return message;
 }
 
@@ -87,6 +91,14 @@ export function isProductionServer() {
   return process.env.VERCEL === "1" || process.env.NODE_ENV === "production";
 }
 
+function assertValidSupabaseKey(key: string) {
+  if (key.startsWith("sb_publishable_")) {
+    throw new Error(
+      "SUPABASE_SERVICE_ROLE_KEY must be your Secret key (sb_secret_...), not the publishable key. In Supabase → Settings → API Keys, copy the Secret key into Vercel.",
+    );
+  }
+}
+
 function getSupabaseAdmin(): SupabaseClient {
   const { url, key } = getSupabaseConfig();
 
@@ -97,6 +109,7 @@ function getSupabaseAdmin(): SupabaseClient {
   }
 
   assertValidSupabaseUrl(url);
+  assertValidSupabaseKey(key);
 
   return createClient(url, key, {
     auth: {

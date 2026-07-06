@@ -23,5 +23,7 @@ create table if not exists public.ride_riders (
 create index if not exists rides_status_idx on public.rides (status);
 create index if not exists ride_riders_ride_id_idx on public.ride_riders (ride_id);
 
-alter table public.rides enable row level security;
-alter table public.ride_riders enable row level security;
+-- Ride data is only accessed from Vercel server functions with the secret/service key.
+-- RLS is disabled so inserts/updates are not blocked when using the API key.
+alter table public.rides disable row level security;
+alter table public.ride_riders disable row level security;
