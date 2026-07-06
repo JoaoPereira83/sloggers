@@ -726,8 +726,8 @@ function JoinCard({
         </p>
       ) : waitingForRiders ? (
         <p className="mt-3 text-base leading-relaxed text-foreground/85 sm:text-sm sm:text-muted-foreground">
-          When the first rider shares their location, the live map will appear here automatically.
-          You can watch without sharing yours.
+          No one is sharing yet. Join below, then tap <span className="font-medium text-foreground">Share my location</span> to
+          start the live map for everyone else.
         </p>
       ) : (
         <p className="mt-3 text-base leading-relaxed text-foreground/85 sm:text-sm sm:text-muted-foreground">
@@ -737,49 +737,49 @@ function JoinCard({
           {" "}Names must be unique — add an initial or nickname if yours is taken.
         </p>
       )}
-      {!waitingForRiders ? (
-        <>
-          <label
-            htmlFor="ride-join-name"
-            className="mt-6 block text-sm font-semibold uppercase tracking-widest text-foreground/80"
-          >
-            Your name on the map
-          </label>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {accountName
-              ? `Defaults to ${accountName} from your account — change it if you use a different nickname on rides.`
-              : "Enter the name other riders will see on the map."}
-          </p>
-          <input
-            id="ride-join-name"
-            value={name}
-            onChange={(event) => onNameChange(event.target.value)}
-            placeholder={accountName ?? "e.g. Joao, Blue, Sarah B"}
-            required
-            autoComplete="name"
-            className="mt-2 w-full rounded-xl border-2 border-input bg-background px-4 py-3.5 text-base text-foreground placeholder:text-foreground/45"
-          />
-          {showAccountNameReset ? (
-            <button
-              type="button"
-              onClick={() => onNameChange(accountName)}
-              className="mt-2 text-sm font-medium text-primary hover:underline"
-            >
-              Use account name ({accountName})
-            </button>
-          ) : null}
-        </>
+      <label
+        htmlFor={compact ? "ride-join-name-compact" : "ride-join-name"}
+        className="mt-6 block text-sm font-semibold uppercase tracking-widest text-foreground/80"
+      >
+        Your name on the map
+      </label>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {accountName
+          ? `Defaults to ${accountName} from your account — change it if you use a different nickname on rides.`
+          : "Enter the name other riders will see on the map."}
+      </p>
+      <input
+        id={compact ? "ride-join-name-compact" : "ride-join-name"}
+        value={name}
+        onChange={(event) => onNameChange(event.target.value)}
+        placeholder={accountName ?? "e.g. Joao, Blue, Sarah B"}
+        required
+        autoComplete="name"
+        className="mt-2 w-full rounded-xl border-2 border-input bg-background px-4 py-3.5 text-base text-foreground placeholder:text-foreground/45"
+      />
+      {showAccountNameReset ? (
+        <button
+          type="button"
+          onClick={() => onNameChange(accountName)}
+          className="mt-2 text-sm font-medium text-primary hover:underline"
+        >
+          Use account name ({accountName})
+        </button>
       ) : null}
       {error ? <p className="mt-3 text-base text-destructive">{error}</p> : null}
-      {!waitingForRiders ? (
-        <button
-          type="submit"
-          disabled={isJoining || !name.trim()}
-          className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-3.5 text-base font-semibold uppercase tracking-wider text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-11 sm:w-auto sm:text-sm"
-        >
-          {isJoining ? <Loader2 className="h-5 w-5 animate-spin" /> : <MapPin className="h-5 w-5" />}
-          Join ride map
-        </button>
+      <button
+        type="submit"
+        disabled={isJoining || !name.trim()}
+        className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-3.5 text-base font-semibold uppercase tracking-wider text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-11 sm:w-auto sm:text-sm"
+      >
+        {isJoining ? <Loader2 className="h-5 w-5 animate-spin" /> : <MapPin className="h-5 w-5" />}
+        Join ride map
+      </button>
+      {waitingForRiders ? (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Step 2 after joining: tap <span className="font-medium text-foreground">Share my location</span> and
+          allow location access on your phone.
+        </p>
       ) : null}
     </form>
   );
