@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import type { Map as LeafletMap, Marker as LeafletMarker } from "leaflet";
 
 import type { RideRider } from "@/lib/ride-types";
+import { getMapTileConfig } from "@/lib/map-tiles";
 
 type RideMapProps = {
   riders: RideRider[];
@@ -86,14 +87,17 @@ export function RideMap({
 
       if (cancelled || !containerRef.current) return;
 
+      const tiles = getMapTileConfig();
+
       const map = L.map(containerRef.current, {
         zoomControl: true,
         attributionControl: true,
       }).setView([52.252, -1.39], 11);
 
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-        maxZoom: 19,
+      L.tileLayer(tiles.url, {
+        attribution: tiles.attribution,
+        maxZoom: tiles.maxZoom,
+        subdomains: tiles.subdomains,
       }).addTo(map);
 
       mapRef.current = map;
