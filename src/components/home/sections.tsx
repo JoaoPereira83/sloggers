@@ -84,7 +84,7 @@ export function HomeTeasersSection() {
     {
       to: "/ride",
       label: "Live ride map",
-      description: "Share your location on ride day. No app store needed.",
+      description: "Share your location whenever the group is out. No app store needed.",
     },
     {
       to: "/join",

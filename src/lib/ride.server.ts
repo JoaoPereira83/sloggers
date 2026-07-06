@@ -92,7 +92,7 @@ export const startRide = createServerFn({ method: "POST" })
 
     const { startRideStore } = await import("./ride-store");
     return startRideStore({
-      title: data.title?.trim() || "Sunday ride",
+      title: data.title?.trim() || "Live tracking",
       meetingLabel: data.meetingLabel?.trim() || "Southam",
     });
   });

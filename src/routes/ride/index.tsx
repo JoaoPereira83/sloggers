@@ -33,11 +33,11 @@ import type { RideReport, RideReportType, RideRider } from "@/lib/ride-types";
 export const Route = createFileRoute("/ride/")({
   head: () => ({
     meta: [
-      { title: "Ride tracker — Southam Sloggers" },
+      { title: "Live tracking — Southam Sloggers" },
       {
         name: "description",
         content:
-          "Live ride-day map for Southam Sloggers. Join the Sunday ride and see where everyone is.",
+          "Live group tracking for Southam Sloggers. Share your location on any ride and see where everyone is.",
       },
       { name: "mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
@@ -56,6 +56,8 @@ export const Route = createFileRoute("/ride/")({
 });
 
 type MobileRideTab = "map" | "group" | "rider" | "alerts";
+
+const DEFAULT_RIDE_TITLE = "Live tracking";
 
 function RidePage() {
   const queryClient = useQueryClient();
@@ -112,7 +114,7 @@ function RidePage() {
       startRide({
         data: {
           password: adminPassword,
-          title: "Sunday ride",
+          title: DEFAULT_RIDE_TITLE,
           meetingLabel: "Southam",
         },
       }),
@@ -303,13 +305,13 @@ function RidePage() {
       >
         <div className={`max-w-3xl ${isJoined && isActive ? "hidden sm:block" : ""}`}>
           <div className="text-xs font-semibold uppercase tracking-[0.3em] text-primary">
-            Ride day
+            Live tracking
           </div>
           <h1 className="mt-2 display text-4xl leading-none sm:mt-3 sm:text-5xl md:text-7xl">
             Live ride map
           </h1>
           <p className="mt-3 text-base text-muted-foreground sm:mt-4 sm:text-lg">
-            Join this Sunday&apos;s ride to share your location with other Sloggers. Perfect when
+            Share your location with other Sloggers while you&apos;re out on a ride. Perfect when
             the group splits and you&apos;re waiting at the cafe.
           </p>
           <p className="mt-2 hidden text-sm text-muted-foreground sm:block">
@@ -321,7 +323,7 @@ function RidePage() {
           <div className="mb-4 sm:hidden">
             <h1 className="display text-3xl leading-none">Live ride map</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              {snapshot?.ride?.title ?? "Sunday ride"} · {snapshot?.riders.length ?? 0} riders
+              {snapshot?.ride?.title ?? DEFAULT_RIDE_TITLE} · {snapshot?.riders.length ?? 0} riders
             </p>
           </div>
         ) : null}
@@ -460,7 +462,7 @@ function StatusBanner({
     <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card px-4 py-3 shadow-soft sm:flex-row sm:flex-wrap sm:items-center sm:gap-4 sm:rounded-3xl sm:px-6 sm:py-4">
       <div className="inline-flex items-center gap-2 text-sm font-medium">
         <Radio className={`h-4 w-4 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
-        {isActive ? `${rideTitle ?? "Sunday ride"} is live` : "No active ride right now"}
+        {isActive ? `${rideTitle ?? DEFAULT_RIDE_TITLE} is live` : "No active ride right now"}
       </div>
       <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
         <Users className="h-4 w-4" />
@@ -551,7 +553,7 @@ function JoinCard({
         onJoin();
       }}
     >
-      <h2 className="display text-2xl sm:text-3xl">Join this Sunday&apos;s ride</h2>
+      <h2 className="display text-2xl sm:text-3xl">Join live tracking</h2>
       <p className="mt-2 text-sm text-muted-foreground">
         Your location will only be visible to other riders who joined this ride. Names must be
         unique — if someone is already using yours, add an initial or nickname.
@@ -573,7 +575,7 @@ function JoinCard({
         className="mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold uppercase tracking-wider text-primary-foreground sm:w-auto"
       >
         {isJoining ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
-        I&apos;m in today
+        Share my location
       </button>
     </form>
   );
@@ -971,7 +973,7 @@ function ReportsFeed({
     <section className="rounded-2xl border border-destructive/20 bg-destructive/5 p-4 shadow-soft sm:rounded-3xl sm:p-6">
       <h2 className="display text-2xl sm:text-3xl">Ride reports</h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        Alerts from riders on today&apos;s ride. Tap one to locate them on the map.
+        Alerts from riders sharing live. Tap one to locate them on the map.
       </p>
       <div className="mt-4 space-y-3">
         {reports.map((report) => {
@@ -1071,8 +1073,8 @@ function EmptyRideState({
     <div className="rounded-3xl border border-border bg-card p-8 shadow-soft">
       <h2 className="display text-3xl">No ride live yet</h2>
       <p className="mt-2 max-w-2xl text-muted-foreground">
-        When a ride lead starts Sunday&apos;s ride, everyone can opt in here and appear on the
-        shared map.
+        When a ride lead starts live tracking, everyone can opt in here and appear on the shared
+        map.
       </p>
       <button
         type="button"
@@ -1083,7 +1085,7 @@ function EmptyRideState({
             : "bg-primary text-primary-foreground hover:opacity-90"
         }`}
       >
-        {showAdmin ? "Hide ride lead controls" : "Ride lead: start today's ride"}
+        {showAdmin ? "Hide ride lead controls" : "Ride lead: start live tracking"}
       </button>
       {showAdmin ? (
         <form
@@ -1108,7 +1110,7 @@ function EmptyRideState({
             className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold uppercase tracking-wider text-primary-foreground"
           >
             {isStarting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            Start Sunday ride
+            Start live tracking
           </button>
         </form>
       ) : null}
