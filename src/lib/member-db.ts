@@ -11,6 +11,8 @@ type MemberRow = {
   approved_at: string | null;
   activation_token: string | null;
   activation_expires_at: string | null;
+  reset_token: string | null;
+  reset_expires_at: string | null;
 };
 
 function mapMember(row: MemberRow): Member {
@@ -24,6 +26,8 @@ function mapMember(row: MemberRow): Member {
     approvedAt: row.approved_at,
     activationToken: row.activation_token,
     activationExpiresAt: row.activation_expires_at,
+    resetToken: row.reset_token,
+    resetExpiresAt: row.reset_expires_at,
   };
 }
 
@@ -68,6 +72,18 @@ export async function findMemberByActivationTokenInSupabase(token: string): Prom
     .from("members")
     .select("*")
     .eq("activation_token", token)
+    .maybeSingle();
+
+  if (error) wrapSupabaseError(error);
+  return data ? mapMember(data as MemberRow) : null;
+}
+
+export async function findMemberByResetTokenInSupabase(token: string): Promise<Member | null> {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("members")
+    .select("*")
+    .eq("reset_token", token)
     .maybeSingle();
 
   if (error) wrapSupabaseError(error);
@@ -163,6 +179,46 @@ export async function completeMemberActivationInSupabase(id: string): Promise<Me
       approved_at: new Date().toISOString(),
       activation_token: null,
       activation_expires_at: null,
+    })
+    .eq("id", id)
+    .select("*")
+    .single();
+
+  if (error) wrapSupabaseError(error);
+  return mapMember(data as MemberRow);
+}
+
+export async function issuePasswordResetInSupabase(
+  id: string,
+  token: string,
+  expiresAt: string,
+): Promise<Member> {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("members")
+    .update({
+      reset_token: token,
+      reset_expires_at: expiresAt,
+    })
+    .eq("id", id)
+    .select("*")
+    .single();
+
+  if (error) wrapSupabaseError(error);
+  return mapMember(data as MemberRow);
+}
+
+export async function completePasswordResetInSupabase(
+  id: string,
+  passwordHash: string,
+): Promise<Member> {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("members")
+    .update({
+      password_hash: passwordHash,
+      reset_token: null,
+      reset_expires_at: null,
     })
     .eq("id", id)
     .select("*")

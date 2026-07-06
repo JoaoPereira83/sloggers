@@ -91,3 +91,62 @@ export async function sendMemberActivationEmailFromBrowser(input: {
     }
   }
 }
+
+export function buildPasswordResetMessage(input: {
+  displayName: string;
+  resetUrl: string;
+}) {
+  return [
+    `Hi ${input.displayName},`,
+    "",
+    "We received a request to reset your Southam Sloggers ride map password. Click the link below to choose a new password:",
+    "",
+    input.resetUrl,
+    "",
+    "This link expires in 1 hour. If you did not request a password reset, you can ignore this email.",
+    "",
+    "See you on the road,",
+    "Southam Sloggers",
+  ].join("\n");
+}
+
+/** Send from the user's browser — FormSubmit blocks most server-side requests. */
+export async function sendPasswordResetEmailFromBrowser(input: {
+  email: string;
+  displayName: string;
+  resetUrl: string;
+}) {
+  const clubEmail = JOIN_FORM_EMAIL?.trim();
+  if (!clubEmail) {
+    throw new Error("Club email is not configured for FormSubmit.");
+  }
+
+  const message = buildPasswordResetMessage({
+    displayName: input.displayName,
+    resetUrl: input.resetUrl,
+  });
+  const basePayload = {
+    _subject: "Southam Sloggers — reset your ride map password",
+    _captcha: "false",
+    _template: "box",
+    name: input.displayName,
+    email: input.email,
+    message,
+  };
+
+  try {
+    await postToFormSubmit(input.email, basePayload);
+    return;
+  } catch (directError) {
+    try {
+      await postToFormSubmit(clubEmail, {
+        ...basePayload,
+        _cc: input.email,
+      });
+    } catch {
+      throw directError instanceof Error
+        ? directError
+        : new Error("Could not send the password reset email.");
+    }
+  }
+}

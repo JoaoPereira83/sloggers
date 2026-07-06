@@ -10,6 +10,8 @@ export type Member = {
   approvedAt: string | null;
   activationToken: string | null;
   activationExpiresAt: string | null;
+  resetToken: string | null;
+  resetExpiresAt: string | null;
 };
 
 export type PublicMember = {

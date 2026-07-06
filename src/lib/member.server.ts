@@ -218,3 +218,55 @@ export const rejectMember = createServerFn({ method: "POST" })
     const member = await updateMemberStatus(data.memberId, "rejected");
     return { member: toPublicMember(member) };
   });
+
+export const requestPasswordReset = createServerFn({ method: "POST" })
+  .validator((data: { email: string }) => data)
+  .handler(async ({ data }) => {
+    const email = normalizeEmail(data.email);
+    validateEmail(email);
+
+    const { issuePasswordReset } = await import("./member-store");
+    const { buildMemberPasswordResetUrl } = await import("./member-site");
+    const result = await issuePasswordReset(email);
+
+    if (!result) {
+      return { sent: false as const, resetUrl: null, displayName: null, email: null };
+    }
+
+    let emailSent = false;
+    try {
+      const { sendPasswordResetEmailViaResend } = await import("./member-email");
+      const resendResult = await sendPasswordResetEmailViaResend({
+        email: result.member.email,
+        displayName: result.member.displayName,
+        resetToken: result.token,
+      });
+      emailSent = resendResult.sent;
+    } catch (error) {
+      console.error("Failed to send password reset email via Resend:", error);
+    }
+
+    return {
+      sent: emailSent,
+      resetUrl: emailSent ? null : buildMemberPasswordResetUrl(result.token),
+      displayName: result.member.displayName,
+      email: result.member.email,
+    };
+  });
+
+export const resetMemberPassword = createServerFn({ method: "POST" })
+  .validator((data: { token: string; password: string }) => data)
+  .handler(async ({ data }) => {
+    const token = data.token.trim();
+    if (!token) {
+      throw new Error("Reset link is invalid.");
+    }
+
+    validatePassword(data.password);
+    const passwordHash = await hash(data.password, 10);
+
+    const { resetPasswordByToken } = await import("./member-store");
+    const member = await resetPasswordByToken(token, passwordHash);
+    await setMemberId(member.id);
+    return { member: toPublicMember(member) };
+  });

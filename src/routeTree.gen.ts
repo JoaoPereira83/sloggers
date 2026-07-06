@@ -17,6 +17,8 @@ import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RideIndexRouteImport } from './routes/ride/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
+import { Route as RideResetPasswordRouteImport } from './routes/ride/reset-password'
+import { Route as RideForgotPasswordRouteImport } from './routes/ride/forgot-password'
 import { Route as RideActivateRouteImport } from './routes/ride/activate'
 
 const TheRideRoute = TheRideRouteImport.update({
@@ -59,6 +61,16 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   path: '/admin/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RideResetPasswordRoute = RideResetPasswordRouteImport.update({
+  id: '/ride/reset-password',
+  path: '/ride/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RideForgotPasswordRoute = RideForgotPasswordRouteImport.update({
+  id: '/ride/forgot-password',
+  path: '/ride/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RideActivateRoute = RideActivateRouteImport.update({
   id: '/ride/activate',
   path: '/ride/activate',
@@ -73,6 +85,8 @@ export interface FileRoutesByFullPath {
   '/join': typeof JoinRoute
   '/the-ride': typeof TheRideRoute
   '/ride/activate': typeof RideActivateRoute
+  '/ride/forgot-password': typeof RideForgotPasswordRoute
+  '/ride/reset-password': typeof RideResetPasswordRoute
   '/admin/': typeof AdminIndexRoute
   '/ride/': typeof RideIndexRoute
 }
@@ -84,6 +98,8 @@ export interface FileRoutesByTo {
   '/join': typeof JoinRoute
   '/the-ride': typeof TheRideRoute
   '/ride/activate': typeof RideActivateRoute
+  '/ride/forgot-password': typeof RideForgotPasswordRoute
+  '/ride/reset-password': typeof RideResetPasswordRoute
   '/admin': typeof AdminIndexRoute
   '/ride': typeof RideIndexRoute
 }
@@ -96,6 +112,8 @@ export interface FileRoutesById {
   '/join': typeof JoinRoute
   '/the-ride': typeof TheRideRoute
   '/ride/activate': typeof RideActivateRoute
+  '/ride/forgot-password': typeof RideForgotPasswordRoute
+  '/ride/reset-password': typeof RideResetPasswordRoute
   '/admin/': typeof AdminIndexRoute
   '/ride/': typeof RideIndexRoute
 }
@@ -109,6 +127,8 @@ export interface FileRouteTypes {
     | '/join'
     | '/the-ride'
     | '/ride/activate'
+    | '/ride/forgot-password'
+    | '/ride/reset-password'
     | '/admin/'
     | '/ride/'
   fileRoutesByTo: FileRoutesByTo
@@ -120,6 +140,8 @@ export interface FileRouteTypes {
     | '/join'
     | '/the-ride'
     | '/ride/activate'
+    | '/ride/forgot-password'
+    | '/ride/reset-password'
     | '/admin'
     | '/ride'
   id:
@@ -131,6 +153,8 @@ export interface FileRouteTypes {
     | '/join'
     | '/the-ride'
     | '/ride/activate'
+    | '/ride/forgot-password'
+    | '/ride/reset-password'
     | '/admin/'
     | '/ride/'
   fileRoutesById: FileRoutesById
@@ -143,6 +167,8 @@ export interface RootRouteChildren {
   JoinRoute: typeof JoinRoute
   TheRideRoute: typeof TheRideRoute
   RideActivateRoute: typeof RideActivateRoute
+  RideForgotPasswordRoute: typeof RideForgotPasswordRoute
+  RideResetPasswordRoute: typeof RideResetPasswordRoute
   AdminIndexRoute: typeof AdminIndexRoute
   RideIndexRoute: typeof RideIndexRoute
 }
@@ -205,6 +231,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/ride/reset-password': {
+      id: '/ride/reset-password'
+      path: '/ride/reset-password'
+      fullPath: '/ride/reset-password'
+      preLoaderRoute: typeof RideResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ride/forgot-password': {
+      id: '/ride/forgot-password'
+      path: '/ride/forgot-password'
+      fullPath: '/ride/forgot-password'
+      preLoaderRoute: typeof RideForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/ride/activate': {
       id: '/ride/activate'
       path: '/ride/activate'
@@ -223,6 +263,8 @@ const rootRouteChildren: RootRouteChildren = {
   JoinRoute: JoinRoute,
   TheRideRoute: TheRideRoute,
   RideActivateRoute: RideActivateRoute,
+  RideForgotPasswordRoute: RideForgotPasswordRoute,
+  RideResetPasswordRoute: RideResetPasswordRoute,
   AdminIndexRoute: AdminIndexRoute,
   RideIndexRoute: RideIndexRoute,
 }

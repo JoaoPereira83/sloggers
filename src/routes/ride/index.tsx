@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, LogOut, MapPin, Map, Navigation, Radio, TriangleAlert, User, Users } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -1390,7 +1390,14 @@ function MemberAuthPanel({ onAuthenticated }: { onAuthenticated: () => void }) {
           />
           {mode === "register" ? (
             <p className="mt-1 text-xs text-muted-foreground">At least 8 characters.</p>
-          ) : null}
+          ) : (
+            <Link
+              to="/ride/forgot-password"
+              className="mt-2 inline-block text-sm text-primary hover:underline"
+            >
+              Forgot password?
+            </Link>
+          )}
         </div>
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
         <button

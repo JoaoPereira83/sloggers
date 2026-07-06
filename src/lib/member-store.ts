@@ -2,6 +2,7 @@ import type { Member, MemberStatus } from "./member-types";
 import { isSupabaseConfigured } from "./ride-db";
 
 const ACTIVATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const RESET_TTL_MS = 60 * 60 * 1000;
 
 async function useFileStore() {
   return import("./member-storage");
@@ -44,6 +45,17 @@ export async function findMemberByActivationToken(token: string): Promise<Member
   return data.members.find((member) => member.activationToken === token) ?? null;
 }
 
+export async function findMemberByResetToken(token: string): Promise<Member | null> {
+  if (isSupabaseConfigured()) {
+    const { findMemberByResetTokenInSupabase } = await useSupabaseStore();
+    return findMemberByResetTokenInSupabase(token);
+  }
+
+  const { readMemberData } = await useFileStore();
+  const data = await readMemberData();
+  return data.members.find((member) => member.resetToken === token) ?? null;
+}
+
 export async function createMember(input: {
   email: string;
   displayName: string;
@@ -68,6 +80,8 @@ export async function createMember(input: {
     approvedAt: null,
     activationToken: null,
     activationExpiresAt: null,
+    resetToken: null,
+    resetExpiresAt: null,
   };
 
   data.members.push(member);
@@ -180,6 +194,74 @@ export async function activateMemberByToken(token: string): Promise<Member> {
     approvedAt: new Date().toISOString(),
     activationToken: null,
     activationExpiresAt: null,
+  };
+
+  await writeMemberData(data);
+  return data.members[index];
+}
+
+export async function issuePasswordReset(email: string): Promise<{ member: Member; token: string } | null> {
+  const member = await findMemberByEmail(email);
+  if (!member || member.status === "pending" || member.status === "rejected") {
+    return null;
+  }
+
+  const { randomBytes } = await import("node:crypto");
+  const token = randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + RESET_TTL_MS).toISOString();
+
+  if (isSupabaseConfigured()) {
+    const { issuePasswordResetInSupabase } = await useSupabaseStore();
+    const updated = await issuePasswordResetInSupabase(member.id, token, expiresAt);
+    return { member: updated, token };
+  }
+
+  const { readMemberData, writeMemberData } = await useFileStore();
+  const data = await readMemberData();
+  const index = data.members.findIndex((entry) => entry.id === member.id);
+
+  if (index === -1) {
+    return null;
+  }
+
+  data.members[index] = {
+    ...data.members[index],
+    resetToken: token,
+    resetExpiresAt: expiresAt,
+  };
+
+  await writeMemberData(data);
+  return { member: data.members[index], token };
+}
+
+export async function resetPasswordByToken(token: string, passwordHash: string): Promise<Member> {
+  const member = await findMemberByResetToken(token);
+  if (!member) {
+    throw new Error("This reset link is invalid.");
+  }
+
+  if (!member.resetExpiresAt || new Date(member.resetExpiresAt).getTime() < Date.now()) {
+    throw new Error("This reset link has expired. Request a new password reset.");
+  }
+
+  if (isSupabaseConfigured()) {
+    const { completePasswordResetInSupabase } = await useSupabaseStore();
+    return completePasswordResetInSupabase(member.id, passwordHash);
+  }
+
+  const { readMemberData, writeMemberData } = await useFileStore();
+  const data = await readMemberData();
+  const index = data.members.findIndex((entry) => entry.id === member.id);
+
+  if (index === -1) {
+    throw new Error("Member not found.");
+  }
+
+  data.members[index] = {
+    ...data.members[index],
+    passwordHash,
+    resetToken: null,
+    resetExpiresAt: null,
   };
 
   await writeMemberData(data);

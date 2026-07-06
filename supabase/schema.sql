@@ -49,13 +49,17 @@ create table if not exists public.members (
   created_at timestamptz not null default now(),
   approved_at timestamptz,
   activation_token text,
-  activation_expires_at timestamptz
+  activation_expires_at timestamptz,
+  reset_token text,
+  reset_expires_at timestamptz
 );
 
 create index if not exists members_status_idx on public.members (status);
 create unique index if not exists members_email_lower_idx on public.members (lower(email));
 create unique index if not exists members_activation_token_idx
   on public.members (activation_token) where activation_token is not null;
+create unique index if not exists members_reset_token_idx
+  on public.members (reset_token) where reset_token is not null;
 
 -- Ride data is only accessed from Vercel server functions with the secret/service key.
 -- RLS is disabled so inserts/updates are not blocked when using the API key.
@@ -75,3 +79,6 @@ alter table public.members disable row level security;
 -- alter table public.members add column if not exists activation_expires_at timestamptz;
 -- alter table public.members add constraint members_status_check check (status in ('pending', 'awaiting_activation', 'approved', 'rejected'));
 -- create unique index if not exists members_activation_token_idx on public.members (activation_token) where activation_token is not null;
+-- alter table public.members add column if not exists reset_token text;
+-- alter table public.members add column if not exists reset_expires_at timestamptz;
+-- create unique index if not exists members_reset_token_idx on public.members (reset_token) where reset_token is not null;

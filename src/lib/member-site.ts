@@ -11,3 +11,7 @@ export function getSiteUrl() {
 export function buildMemberActivationUrl(token: string) {
   return `${getSiteUrl()}/ride/activate?token=${encodeURIComponent(token)}`;
 }
+
+export function buildMemberPasswordResetUrl(token: string) {
+  return `${getSiteUrl()}/ride/reset-password?token=${encodeURIComponent(token)}`;
+}
