@@ -9,14 +9,38 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TheRideRouteImport } from './routes/the-ride'
+import { Route as JoinRouteImport } from './routes/join'
 import { Route as GalleryRouteImport } from './routes/gallery'
+import { Route as CoffeeRouteImport } from './routes/coffee'
+import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RideIndexRouteImport } from './routes/ride/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 
+const TheRideRoute = TheRideRouteImport.update({
+  id: '/the-ride',
+  path: '/the-ride',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JoinRoute = JoinRouteImport.update({
+  id: '/join',
+  path: '/join',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GalleryRoute = GalleryRouteImport.update({
   id: '/gallery',
   path: '/gallery',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CoffeeRoute = CoffeeRouteImport.update({
+  id: '/coffee',
+  path: '/coffee',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AboutRoute = AboutRouteImport.update({
+  id: '/about',
+  path: '/about',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -37,45 +61,114 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
+  '/coffee': typeof CoffeeRoute
   '/gallery': typeof GalleryRoute
+  '/join': typeof JoinRoute
+  '/the-ride': typeof TheRideRoute
   '/admin/': typeof AdminIndexRoute
   '/ride/': typeof RideIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
+  '/coffee': typeof CoffeeRoute
   '/gallery': typeof GalleryRoute
+  '/join': typeof JoinRoute
+  '/the-ride': typeof TheRideRoute
   '/admin': typeof AdminIndexRoute
   '/ride': typeof RideIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
+  '/coffee': typeof CoffeeRoute
   '/gallery': typeof GalleryRoute
+  '/join': typeof JoinRoute
+  '/the-ride': typeof TheRideRoute
   '/admin/': typeof AdminIndexRoute
   '/ride/': typeof RideIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/gallery' | '/admin/' | '/ride/'
+  fullPaths:
+    | '/'
+    | '/about'
+    | '/coffee'
+    | '/gallery'
+    | '/join'
+    | '/the-ride'
+    | '/admin/'
+    | '/ride/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/gallery' | '/admin' | '/ride'
-  id: '__root__' | '/' | '/gallery' | '/admin/' | '/ride/'
+  to:
+    | '/'
+    | '/about'
+    | '/coffee'
+    | '/gallery'
+    | '/join'
+    | '/the-ride'
+    | '/admin'
+    | '/ride'
+  id:
+    | '__root__'
+    | '/'
+    | '/about'
+    | '/coffee'
+    | '/gallery'
+    | '/join'
+    | '/the-ride'
+    | '/admin/'
+    | '/ride/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AboutRoute: typeof AboutRoute
+  CoffeeRoute: typeof CoffeeRoute
   GalleryRoute: typeof GalleryRoute
+  JoinRoute: typeof JoinRoute
+  TheRideRoute: typeof TheRideRoute
   AdminIndexRoute: typeof AdminIndexRoute
   RideIndexRoute: typeof RideIndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/the-ride': {
+      id: '/the-ride'
+      path: '/the-ride'
+      fullPath: '/the-ride'
+      preLoaderRoute: typeof TheRideRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/join': {
+      id: '/join'
+      path: '/join'
+      fullPath: '/join'
+      preLoaderRoute: typeof JoinRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/gallery': {
       id: '/gallery'
       path: '/gallery'
       fullPath: '/gallery'
       preLoaderRoute: typeof GalleryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/coffee': {
+      id: '/coffee'
+      path: '/coffee'
+      fullPath: '/coffee'
+      preLoaderRoute: typeof CoffeeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/about': {
+      id: '/about'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof AboutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -104,7 +197,11 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AboutRoute: AboutRoute,
+  CoffeeRoute: CoffeeRoute,
   GalleryRoute: GalleryRoute,
+  JoinRoute: JoinRoute,
+  TheRideRoute: TheRideRoute,
   AdminIndexRoute: AdminIndexRoute,
   RideIndexRoute: RideIndexRoute,
 }

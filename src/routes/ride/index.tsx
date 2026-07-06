@@ -297,7 +297,7 @@ function RidePage() {
 
   return (
     <div className="min-h-[100dvh] bg-background text-foreground">
-      <SiteNav compact={isJoined && isActive} />
+      <SiteNav />
       <main
         className="mx-auto max-w-6xl px-4 pb-[max(5rem,env(safe-area-inset-bottom))] pt-[calc(5.5rem+env(safe-area-inset-top))] sm:px-6 sm:pb-24 sm:pt-28"
       >
@@ -442,7 +442,7 @@ function RidePage() {
           ) : null}
         </div>
       </main>
-      <SiteFooter compact={isJoined && isActive} />
+      <SiteFooter />
     </div>
   );
 }

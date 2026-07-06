@@ -29,8 +29,8 @@ function GalleryPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <SiteNav variant="dark" />
-      <main className="pt-28 pb-24">
+      <SiteNav />
+      <main className="pt-[calc(5rem+env(safe-area-inset-top))] pb-24">
         <div className="mx-auto max-w-7xl px-6">
           <div className="max-w-3xl">
             <div className="text-xs font-semibold uppercase tracking-[0.3em] text-primary">
