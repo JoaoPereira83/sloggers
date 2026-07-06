@@ -39,8 +39,11 @@ export function SiteNav() {
       style={{ paddingTop: "env(safe-area-inset-top)" }}
     >
       <nav className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 sm:py-4">
-        <Link to="/" className="shrink-0" onClick={closeMenu}>
-          <span className="display text-2xl tracking-wider text-primary sm:text-3xl">Sloggers</span>
+        <Link to="/" className="flex min-w-0 shrink items-center gap-2" onClick={closeMenu}>
+          <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-primary sm:h-3 sm:w-3" />
+          <span className="display truncate text-xl tracking-wider text-primary sm:text-2xl">
+            Southam Sloggers
+          </span>
         </Link>
 
         <div className="hidden items-center gap-6 text-sm font-medium uppercase tracking-wider md:flex lg:gap-8">
