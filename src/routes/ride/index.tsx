@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, MapPin, Navigation, Radio, TriangleAlert, Users } from "lucide-react";
+import { Loader2, MapPin, Map, Navigation, Radio, TriangleAlert, User, Users } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { RideMap } from "@/components/RideMap";
@@ -55,6 +55,8 @@ export const Route = createFileRoute("/ride/")({
   component: RidePage,
 });
 
+type MobileRideTab = "map" | "group" | "rider" | "alerts";
+
 function RidePage() {
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
@@ -68,6 +70,7 @@ function RidePage() {
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
   const [editReportType, setEditReportType] = useState<RideReportType>("mechanical");
   const [editReportMessage, setEditReportMessage] = useState("");
+  const [mobileTab, setMobileTab] = useState<MobileRideTab>("map");
 
   const rideQuery = useQuery({
     queryKey: ["ride-snapshot"],
@@ -134,6 +137,7 @@ function RidePage() {
     onSuccess: () => {
       setShowReportForm(false);
       setReportMessage("");
+      setMobileTab("alerts");
       invalidate();
     },
   });
@@ -219,6 +223,78 @@ function RidePage() {
     }
   }, [isSharing]);
 
+  const handleSelectRider = (riderId: string) => {
+    setSelectedRiderId(riderId);
+    setMobileTab("rider");
+  };
+
+  const handleClearRider = () => {
+    setSelectedRiderId(null);
+    setMobileTab("group");
+  };
+
+  const reportPanel = (
+    <ReportPanel
+      isSharing={isSharing}
+      showForm={showReportForm}
+      onToggleForm={() => setShowReportForm((value) => !value)}
+      reportType={reportType}
+      onReportTypeChange={setReportType}
+      reportMessage={reportMessage}
+      onReportMessageChange={setReportMessage}
+      onSubmit={() =>
+        reportMutation.mutate({
+          type: reportType,
+          message: reportMessage.trim() || undefined,
+          latitude: currentRider?.latitude ?? undefined,
+          longitude: currentRider?.longitude ?? undefined,
+        })
+      }
+      isSubmitting={reportMutation.isPending}
+      error={reportMutation.error instanceof Error ? reportMutation.error.message : null}
+    />
+  );
+
+  const reportsFeed =
+    snapshot?.reports.length ? (
+      <ReportsFeed
+        reports={snapshot.reports}
+        currentRiderId={snapshot.currentRiderId ?? null}
+        isSharing={isSharing}
+        editingReportId={editingReportId}
+        editReportType={editReportType}
+        editReportMessage={editReportMessage}
+        onSelectRider={handleSelectRider}
+        onStartEdit={(report) => {
+          setEditingReportId(report.id);
+          setEditReportType(report.type);
+          setEditReportMessage(report.message ?? "");
+        }}
+        onCancelEdit={() => setEditingReportId(null)}
+        onEditReportTypeChange={setEditReportType}
+        onEditReportMessageChange={setEditReportMessage}
+        onSaveEdit={() => {
+          if (!editingReportId) return;
+          updateReportMutation.mutate({
+            reportId: editingReportId,
+            type: editReportType,
+            message: editReportMessage.trim() || undefined,
+            latitude: currentRider?.latitude ?? undefined,
+            longitude: currentRider?.longitude ?? undefined,
+          });
+        }}
+        onDelete={(reportId) => deleteReportMutation.mutate(reportId)}
+        isSaving={updateReportMutation.isPending}
+        isDeleting={deleteReportMutation.isPending}
+        saveError={
+          updateReportMutation.error instanceof Error ? updateReportMutation.error.message : null
+        }
+        deleteError={
+          deleteReportMutation.error instanceof Error ? deleteReportMutation.error.message : null
+        }
+      />
+    ) : null;
+
   return (
     <div className="min-h-[100dvh] bg-background text-foreground">
       <SiteNav compact={isJoined && isActive} />
@@ -283,93 +359,73 @@ function RidePage() {
                 />
               </div>
 
-              <RideMap
-                riders={snapshot?.riders ?? []}
-                selectedRiderId={selectedRiderId}
-                currentRiderId={snapshot?.currentRiderId ?? null}
-                onSelectRider={setSelectedRiderId}
+              <MobileRideTabs
+                active={mobileTab}
+                onChange={setMobileTab}
+                reportCount={snapshot?.reports.length ?? 0}
+                hasSelectedRider={Boolean(selectedRider)}
               />
 
-              <div className="grid gap-4 sm:gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-                <div className={selectedRider ? "hidden lg:block" : "block"}>
+              <div className="lg:hidden">
+                {mobileTab === "map" ? (
+                  <RideMap
+                    riders={snapshot?.riders ?? []}
+                    selectedRiderId={selectedRiderId}
+                    currentRiderId={snapshot?.currentRiderId ?? null}
+                    onSelectRider={handleSelectRider}
+                  />
+                ) : null}
+
+                {mobileTab === "group" ? (
+                  <RiderList
+                    riders={snapshot?.riders ?? []}
+                    currentRiderId={snapshot?.currentRiderId ?? null}
+                    selectedRiderId={selectedRiderId}
+                    onSelectRider={handleSelectRider}
+                  />
+                ) : null}
+
+                {mobileTab === "rider" ? (
+                  <RiderDetail
+                    rider={selectedRider}
+                    currentRider={currentRider}
+                    onClear={handleClearRider}
+                  />
+                ) : null}
+
+                {mobileTab === "alerts" ? (
+                  <div className="space-y-4">
+                    {reportPanel}
+                    {reportsFeed}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="hidden space-y-6 lg:block">
+                <RideMap
+                  riders={snapshot?.riders ?? []}
+                  selectedRiderId={selectedRiderId}
+                  currentRiderId={snapshot?.currentRiderId ?? null}
+                  onSelectRider={setSelectedRiderId}
+                />
+
+                <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
                   <RiderList
                     riders={snapshot?.riders ?? []}
                     currentRiderId={snapshot?.currentRiderId ?? null}
                     selectedRiderId={selectedRiderId}
                     onSelectRider={setSelectedRiderId}
                   />
-                </div>
-                <div className={selectedRider ? "block" : "hidden lg:block"}>
                   <RiderDetail
                     rider={selectedRider}
                     currentRider={currentRider}
                     onClear={() => setSelectedRiderId(null)}
                   />
                 </div>
+
+                {reportPanel}
+                {reportsFeed}
               </div>
-
-              <ReportPanel
-                isSharing={isSharing}
-                showForm={showReportForm}
-                onToggleForm={() => setShowReportForm((value) => !value)}
-                reportType={reportType}
-                onReportTypeChange={setReportType}
-                reportMessage={reportMessage}
-                onReportMessageChange={setReportMessage}
-                onSubmit={() =>
-                  reportMutation.mutate({
-                    type: reportType,
-                    message: reportMessage.trim() || undefined,
-                    latitude: currentRider?.latitude ?? undefined,
-                    longitude: currentRider?.longitude ?? undefined,
-                  })
-                }
-                isSubmitting={reportMutation.isPending}
-                error={reportMutation.error instanceof Error ? reportMutation.error.message : null}
-              />
-
-              {snapshot?.reports.length ? (
-                <ReportsFeed
-                  reports={snapshot.reports}
-                  currentRiderId={snapshot.currentRiderId ?? null}
-                  isSharing={isSharing}
-                  editingReportId={editingReportId}
-                  editReportType={editReportType}
-                  editReportMessage={editReportMessage}
-                  onSelectRider={setSelectedRiderId}
-                  onStartEdit={(report) => {
-                    setEditingReportId(report.id);
-                    setEditReportType(report.type);
-                    setEditReportMessage(report.message ?? "");
-                  }}
-                  onCancelEdit={() => setEditingReportId(null)}
-                  onEditReportTypeChange={setEditReportType}
-                  onEditReportMessageChange={setEditReportMessage}
-                  onSaveEdit={() => {
-                    if (!editingReportId) return;
-                    updateReportMutation.mutate({
-                      reportId: editingReportId,
-                      type: editReportType,
-                      message: editReportMessage.trim() || undefined,
-                      latitude: currentRider?.latitude ?? undefined,
-                      longitude: currentRider?.longitude ?? undefined,
-                    });
-                  }}
-                  onDelete={(reportId) => deleteReportMutation.mutate(reportId)}
-                  isSaving={updateReportMutation.isPending}
-                  isDeleting={deleteReportMutation.isPending}
-                  saveError={
-                    updateReportMutation.error instanceof Error
-                      ? updateReportMutation.error.message
-                      : null
-                  }
-                  deleteError={
-                    deleteReportMutation.error instanceof Error
-                      ? deleteReportMutation.error.message
-                      : null
-                  }
-                />
-              ) : null}
             </>
           )}
 
@@ -409,6 +465,66 @@ function StatusBanner({
       <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
         <Users className="h-4 w-4" />
         {riderCount} rider{riderCount === 1 ? "" : "s"} sharing
+      </div>
+    </div>
+  );
+}
+
+function MobileRideTabs({
+  active,
+  onChange,
+  reportCount,
+  hasSelectedRider,
+}: {
+  active: MobileRideTab;
+  onChange: (tab: MobileRideTab) => void;
+  reportCount: number;
+  hasSelectedRider: boolean;
+}) {
+  const tabs: Array<{
+    id: MobileRideTab;
+    label: string;
+    icon: typeof Map;
+    badge?: number;
+    hint?: boolean;
+  }> = [
+    { id: "map", label: "Map", icon: Map },
+    { id: "group", label: "Group", icon: Users },
+    { id: "rider", label: "Rider", icon: User, hint: hasSelectedRider },
+    { id: "alerts", label: "Alerts", icon: TriangleAlert, badge: reportCount },
+  ];
+
+  return (
+    <div className="sticky top-[calc(8.5rem+env(safe-area-inset-top))] z-20 -mx-4 border-b border-border/60 bg-background/95 px-4 py-2 backdrop-blur-md lg:hidden">
+      <div className="grid grid-cols-4 gap-1 rounded-2xl border border-border bg-muted/40 p-1">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = active === tab.id;
+
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => onChange(tab.id)}
+              className={`relative flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-2 text-[10px] font-semibold uppercase tracking-wide transition ${
+                isActive
+                  ? "bg-background text-primary shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Icon className="h-4 w-4" />
+              <span>{tab.label}</span>
+              {tab.badge && tab.badge > 0 ? (
+                <span className="absolute right-1 top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-destructive-foreground">
+                  {tab.badge}
+                </span>
+              ) : null}
+              {tab.hint && !isActive ? (
+                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-primary" />
+              ) : null}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
