@@ -219,6 +219,84 @@ export const rejectMember = createServerFn({ method: "POST" })
     return { member: toPublicMember(member) };
   });
 
+export const createMembersAsAdmin = createServerFn({ method: "POST" })
+  .validator(
+    (data: {
+      members: { email: string; displayName: string }[];
+      password: string;
+      approveImmediately?: boolean;
+    }) => data,
+  )
+  .handler(async ({ data }) => {
+    await requireAdmin();
+
+    if (!data.members.length) {
+      throw new Error("Add at least one member.");
+    }
+
+    validatePassword(data.password);
+
+    const { findMemberByEmail, createMember, issueMemberActivation } = await import(
+      "./member-store"
+    );
+    const { buildMemberActivationUrl } = await import("./member-site");
+
+    const created: PublicMember[] = [];
+    const skipped: string[] = [];
+    const approvals: {
+      member: PublicMember;
+      emailSent: boolean;
+      activationUrl: string;
+    }[] = [];
+
+    for (const entry of data.members) {
+      const email = normalizeEmail(entry.email);
+      validateEmail(email);
+      const displayName = validateDisplayName(entry.displayName);
+
+      const existing = await findMemberByEmail(email);
+      if (existing) {
+        skipped.push(email);
+        continue;
+      }
+
+      const passwordHash = await hash(data.password, 10);
+      let member = await createMember({ email, displayName, passwordHash });
+
+      if (data.approveImmediately) {
+        const { member: approvedMember, token } = await issueMemberActivation(member.id);
+        member = approvedMember;
+        const publicMember = toPublicMember(member);
+        const activationUrl = buildMemberActivationUrl(token);
+        let emailSent = false;
+
+        try {
+          const { sendMemberActivationEmailViaResend } = await import("./member-email");
+          const result = await sendMemberActivationEmailViaResend({
+            email: member.email,
+            displayName: member.displayName,
+            activationToken: token,
+          });
+          emailSent = result.sent;
+        } catch (error) {
+          console.error("Failed to send member activation email via Resend:", error);
+        }
+
+        approvals.push({ member: publicMember, emailSent, activationUrl });
+        created.push(publicMember);
+        continue;
+      }
+
+      created.push(toPublicMember(member));
+    }
+
+    if (!created.length && skipped.length) {
+      throw new Error("Every email you entered already has an account.");
+    }
+
+    return { created, skipped, approvals };
+  });
+
 export const requestPasswordReset = createServerFn({ method: "POST" })
   .validator((data: { email: string }) => data)
   .handler(async ({ data }) => {

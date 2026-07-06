@@ -7,6 +7,14 @@ function getAdminPassword() {
   return process.env.ADMIN_PASSWORD ?? "sloggers";
 }
 
+function getAdminPasswords() {
+  const list = (process.env.ADMIN_PASSWORDS ?? getAdminPassword())
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  return new Set(list);
+}
+
 export const getAdminSession = createServerFn({ method: "GET" }).handler(async () => {
   const { useSession } = await import("@tanstack/react-start/server");
   const session = await useSession<AdminSession>(sessionConfig);
@@ -16,7 +24,7 @@ export const getAdminSession = createServerFn({ method: "GET" }).handler(async (
 export const adminLogin = createServerFn({ method: "POST" })
   .validator((data: { password: string }) => data)
   .handler(async ({ data }) => {
-    if (data.password !== getAdminPassword()) {
+    if (!getAdminPasswords().has(data.password)) {
       throw new Error("Invalid password");
     }
 
@@ -43,9 +51,8 @@ async function requireAdmin() {
 }
 
 export const getGalleryItems = createServerFn({ method: "GET" }).handler(async () => {
-  const { readGalleryData, sortGalleryItems } = await import("./gallery-storage");
-  const data = await readGalleryData();
-  return sortGalleryItems(data.items);
+  const { listGalleryItems } = await import("./gallery-store");
+  return listGalleryItems();
 });
 
 export const addGalleryPhoto = createServerFn({ method: "POST", strict: false }).handler(
@@ -72,41 +79,22 @@ export const addGalleryPhoto = createServerFn({ method: "POST", strict: false })
       throw new Error("Image must be 8MB or smaller");
     }
 
-    const { randomUUID } = await import("node:crypto");
-    const { writeFile } = await import("node:fs/promises");
-    const { join } = await import("node:path");
-    const {
-      ensureGalleryUploadDir,
-      getGalleryUploadDir,
-      readGalleryData,
-      sanitizeFilename,
-      writeGalleryData,
-    } = await import("./gallery-storage");
-
-    await ensureGalleryUploadDir();
+    const { sanitizeFilename } = await import("./gallery-storage");
+    const { addGalleryItem } = await import("./gallery-store");
 
     const extension = file.name.includes(".")
       ? file.name.slice(file.name.lastIndexOf("."))
       : ".jpg";
     const filename = `${Date.now()}-${sanitizeFilename(file.name.replace(extension, ""))}${extension}`;
-    const filepath = join(getGalleryUploadDir(), filename);
     const buffer = Buffer.from(await file.arrayBuffer());
-    await writeFile(filepath, buffer);
 
-    const src = `/gallery/${filename}`;
-    const gallery = await readGalleryData();
-    const item = {
-      id: randomUUID(),
-      src,
+    return addGalleryItem({
+      buffer,
+      filename,
+      contentType: file.type,
       caption,
       alt: alt || caption || "Sloggers ride photo",
-      createdAt: new Date().toISOString(),
-    };
-
-    gallery.items.unshift(item);
-    await writeGalleryData(gallery);
-
-    return item;
+    });
   },
 );
 
@@ -115,22 +103,11 @@ export const updateGalleryPhoto = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     await requireAdmin();
 
-    const { readGalleryData, writeGalleryData } = await import("./gallery-storage");
-    const gallery = await readGalleryData();
-    const index = gallery.items.findIndex((item) => item.id === data.id);
-
-    if (index === -1) {
-      throw new Error("Photo not found");
-    }
-
-    gallery.items[index] = {
-      ...gallery.items[index],
+    const { updateGalleryItem } = await import("./gallery-store");
+    return updateGalleryItem(data.id, {
       caption: data.caption.trim(),
       alt: data.alt.trim() || data.caption.trim(),
-    };
-
-    await writeGalleryData(gallery);
-    return gallery.items[index];
+    });
   });
 
 export const deleteGalleryPhoto = createServerFn({ method: "POST" })
@@ -138,14 +115,7 @@ export const deleteGalleryPhoto = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     await requireAdmin();
 
-    const { readGalleryData, writeGalleryData } = await import("./gallery-storage");
-    const gallery = await readGalleryData();
-    const nextItems = gallery.items.filter((item) => item.id !== data.id);
-
-    if (nextItems.length === gallery.items.length) {
-      throw new Error("Photo not found");
-    }
-
-    await writeGalleryData({ items: nextItems });
+    const { deleteGalleryItem } = await import("./gallery-store");
+    await deleteGalleryItem(data.id);
     return { ok: true as const };
   });

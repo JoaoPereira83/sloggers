@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { Check, Loader2, LogOut, Trash2, X } from "lucide-react";
+import { useRef, useState } from "react";
+import { Check, ImagePlus, Loader2, LogOut, Trash2, X } from "lucide-react";
 
 import { SiteFooter, SiteNav } from "@/components/SiteNav";
 import {
@@ -15,6 +15,7 @@ import {
 } from "@/lib/gallery.server";
 import {
   approveMember,
+  createMembersAsAdmin,
   listMembersForAdmin,
   rejectMember,
 } from "@/lib/member.server";
@@ -223,6 +224,7 @@ function AdminGalleryEditor({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editCaption, setEditCaption] = useState("");
   const [editAlt, setEditAlt] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const uploadMutation = useMutation({
     mutationFn: async () => {
@@ -238,6 +240,9 @@ function AdminGalleryEditor({
       setAlt("");
       setFile(null);
       setUploadError(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
       onChanged();
     },
     onError: (error) => {
@@ -275,12 +280,25 @@ function AdminGalleryEditor({
               Photo
             </label>
             <input
+              ref={fileInputRef}
               type="file"
               accept="image/*"
               onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-              required
-              className="mt-2 block w-full text-sm"
+              className="sr-only"
             />
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-5 py-2.5 text-sm font-medium hover:bg-muted"
+              >
+                <ImagePlus className="h-4 w-4" />
+                Choose photo
+              </button>
+              <span className="text-sm text-muted-foreground">
+                {file ? file.name : "No photo selected"}
+              </span>
+            </div>
           </div>
           <div>
             <label className="block text-xs uppercase tracking-widest text-muted-foreground">
@@ -307,7 +325,7 @@ function AdminGalleryEditor({
           {uploadError ? <p className="text-sm text-destructive">{uploadError}</p> : null}
           <button
             type="submit"
-            disabled={uploadMutation.isPending}
+            disabled={uploadMutation.isPending || !file}
             className="inline-flex w-fit items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold uppercase tracking-wider text-primary-foreground hover:opacity-90 disabled:opacity-60"
           >
             {uploadMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
@@ -420,6 +438,34 @@ function memberStatusLabel(status: PublicMember["status"]) {
   return "Rejected";
 }
 
+function parseMemberEntries(raw: string) {
+  const members: { displayName: string; email: string }[] = [];
+  const invalid: string[] = [];
+
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    const commaIndex = trimmed.indexOf(",");
+    if (commaIndex === -1) {
+      invalid.push(trimmed);
+      continue;
+    }
+
+    const displayName = trimmed.slice(0, commaIndex).trim();
+    const email = trimmed.slice(commaIndex + 1).trim();
+
+    if (!displayName || !email) {
+      invalid.push(trimmed);
+      continue;
+    }
+
+    members.push({ displayName, email });
+  }
+
+  return { members, invalid };
+}
+
 function AdminMembersPanel({
   members,
   isLoading,
@@ -430,6 +476,12 @@ function AdminMembersPanel({
   onChanged: () => void;
 }) {
   const [emailNotice, setEmailNotice] = useState<string | null>(null);
+  const [addName, setAddName] = useState("");
+  const [addEmail, setAddEmail] = useState("");
+  const [bulkEntries, setBulkEntries] = useState("");
+  const [sharedPassword, setSharedPassword] = useState("");
+  const [approveImmediately, setApproveImmediately] = useState(true);
+  const [addError, setAddError] = useState<string | null>(null);
 
   const approveMutation = useMutation({
     mutationFn: async (member: PublicMember) => {
@@ -473,6 +525,62 @@ function AdminMembersPanel({
     onSuccess: onChanged,
   });
 
+  const createMembersMutation = useMutation({
+    mutationFn: (payload: {
+      members: { email: string; displayName: string }[];
+      password: string;
+      approveImmediately: boolean;
+    }) => createMembersAsAdmin({ data: payload }),
+    onSuccess: async (result) => {
+      onChanged();
+      setAddError(null);
+      setAddName("");
+      setAddEmail("");
+      setBulkEntries("");
+      setSharedPassword("");
+
+      const createdCount = result.created.length;
+      const skippedText =
+        result.skipped.length > 0
+          ? ` Skipped ${result.skipped.length} existing email${result.skipped.length === 1 ? "" : "s"}.`
+          : "";
+
+      if (!approveImmediately) {
+        setEmailNotice(
+          `Added ${createdCount} member${createdCount === 1 ? "" : "s"}.${skippedText} Approve them when you are ready.`,
+        );
+        return;
+      }
+
+      let sentCount = 0;
+      for (const approval of result.approvals) {
+        if (approval.emailSent) {
+          sentCount += 1;
+          continue;
+        }
+
+        try {
+          await sendMemberActivationEmailFromBrowser({
+            email: approval.member.email,
+            displayName: approval.member.displayName,
+            activationUrl: approval.activationUrl,
+          });
+          sentCount += 1;
+        } catch (error) {
+          console.error("Failed to send activation email from browser:", error);
+        }
+      }
+
+      setEmailNotice(
+        `Added ${createdCount} member${createdCount === 1 ? "" : "s"} and sent ${sentCount} activation email${sentCount === 1 ? "" : "s"}.${skippedText}`,
+      );
+    },
+    onError: (error) => {
+      setEmailNotice(null);
+      setAddError(error instanceof Error ? error.message : "Could not add members.");
+    },
+  });
+
   const pendingMembers = members.filter((member) => member.status === "pending");
   const otherMembers = members.filter((member) => member.status !== "pending");
 
@@ -483,6 +591,139 @@ function AdminMembersPanel({
           {emailNotice}
         </p>
       ) : null}
+      <section className="rounded-3xl border border-border bg-card p-8 shadow-soft">
+        <h2 className="display text-3xl">Add members</h2>
+        <p className="mt-2 text-muted-foreground">
+          Pre-register Sloggers who have not signed up yet. Use one line per person for bulk add:
+          <span className="font-medium text-foreground"> Name, email@example.com</span>
+        </p>
+
+        <form
+          className="mt-6 grid gap-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setAddError(null);
+            createMembersMutation.mutate({
+              members: [{ displayName: addName, email: addEmail }],
+              password: sharedPassword,
+              approveImmediately,
+            });
+          }}
+        >
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <label className="block text-xs uppercase tracking-widest text-muted-foreground">
+                Display name
+              </label>
+              <input
+                value={addName}
+                onChange={(event) => setAddName(event.target.value)}
+                required
+                placeholder="Joao Pereira"
+                className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3"
+              />
+            </div>
+            <div>
+              <label className="block text-xs uppercase tracking-widest text-muted-foreground">
+                Email
+              </label>
+              <input
+                type="email"
+                value={addEmail}
+                onChange={(event) => setAddEmail(event.target.value)}
+                required
+                placeholder="joao@example.com"
+                className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs uppercase tracking-widest text-muted-foreground">
+              Bulk add
+            </label>
+            <textarea
+              value={bulkEntries}
+              onChange={(event) => setBulkEntries(event.target.value)}
+              rows={4}
+              placeholder={"Joao Pereira, joao@example.com\nMaria Silva, maria@example.com"}
+              className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs uppercase tracking-widest text-muted-foreground">
+              Temporary password
+            </label>
+            <input
+              type="password"
+              value={sharedPassword}
+              onChange={(event) => setSharedPassword(event.target.value)}
+              required
+              minLength={8}
+              placeholder="At least 8 characters"
+              className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3"
+            />
+            <p className="mt-2 text-xs text-muted-foreground">
+              Share this with each member after they activate their account.
+            </p>
+          </div>
+
+          <label className="inline-flex items-center gap-3 text-sm">
+            <input
+              type="checkbox"
+              checked={approveImmediately}
+              onChange={(event) => setApproveImmediately(event.target.checked)}
+              className="h-4 w-4 rounded border-input"
+            />
+            Approve immediately and send activation email
+          </label>
+
+          {addError ? <p className="text-sm text-destructive">{addError}</p> : null}
+
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="submit"
+              disabled={createMembersMutation.isPending}
+              className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold uppercase tracking-wider text-primary-foreground hover:opacity-90 disabled:opacity-60"
+            >
+              {createMembersMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Add member
+            </button>
+            <button
+              type="button"
+              disabled={createMembersMutation.isPending || !bulkEntries.trim()}
+              onClick={() => {
+                setAddError(null);
+                if (sharedPassword.length < 8) {
+                  setAddError("Temporary password must be at least 8 characters.");
+                  return;
+                }
+                const { members: parsedMembers, invalid } = parseMemberEntries(bulkEntries);
+                if (invalid.length > 0) {
+                  setAddError(
+                    `Could not read ${invalid.length} line${invalid.length === 1 ? "" : "s"}. Use: Name, email@example.com`,
+                  );
+                  return;
+                }
+                if (!parsedMembers.length) {
+                  setAddError("Add at least one member line.");
+                  return;
+                }
+                createMembersMutation.mutate({
+                  members: parsedMembers,
+                  password: sharedPassword,
+                  approveImmediately,
+                });
+              }}
+              className="inline-flex items-center gap-2 rounded-full border border-border px-6 py-3 text-sm font-semibold uppercase tracking-wider hover:bg-muted disabled:opacity-60"
+            >
+              Add all from list
+            </button>
+          </div>
+        </form>
+      </section>
+
       <section className="rounded-3xl border border-border bg-card p-8 shadow-soft">
         <h2 className="display text-3xl">Pending approvals</h2>
         <p className="mt-2 text-muted-foreground">

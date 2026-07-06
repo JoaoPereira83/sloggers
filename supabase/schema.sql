@@ -61,12 +61,26 @@ create unique index if not exists members_activation_token_idx
 create unique index if not exists members_reset_token_idx
   on public.members (reset_token) where reset_token is not null;
 
+create table if not exists public.gallery_items (
+  id uuid primary key default gen_random_uuid(),
+  src text not null,
+  caption text not null default '',
+  alt text not null default '',
+  storage_path text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists gallery_items_created_at_idx on public.gallery_items (created_at desc);
+
 -- Ride data is only accessed from Vercel server functions with the secret/service key.
 -- RLS is disabled so inserts/updates are not blocked when using the API key.
 alter table public.rides disable row level security;
 alter table public.ride_riders disable row level security;
 alter table public.ride_reports disable row level security;
 alter table public.members disable row level security;
+alter table public.gallery_items disable row level security;
+
+-- Gallery uploads: in Supabase → Storage, create a public bucket named "gallery".
 
 -- If you already created the tables, run this once in the SQL editor:
 -- alter table public.ride_riders add column if not exists speed_kmh double precision;
