@@ -25,7 +25,7 @@ export const Route = createFileRoute("/join")({
 
 function JoinPage() {
   return (
-    <PageShell mainClassName="pb-24">
+    <PageShell>
       <JoinSection />
     </PageShell>
   );

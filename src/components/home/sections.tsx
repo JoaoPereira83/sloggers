@@ -177,18 +177,12 @@ export function AboutSection() {
 
 export function RideSection() {
   return (
-    <section className="relative py-24 md:py-32 bg-primary-deep text-primary-foreground overflow-hidden">
-      <div
-        className="absolute inset-0 opacity-20"
-        style={{
-          backgroundImage: `radial-gradient(circle at 20% 30%, oklch(0.62 0.22 315) 0%, transparent 40%), radial-gradient(circle at 80% 70%, oklch(0.72 0.19 335) 0%, transparent 40%)`,
-        }}
-      />
-      <div className="relative mx-auto max-w-7xl px-6">
-        <div className="text-xs font-semibold uppercase tracking-[0.3em] text-primary-glow">
+    <section className="border-y border-border bg-card py-24 md:py-32">
+      <div className="mx-auto max-w-7xl px-6">
+        <div className="text-xs font-semibold uppercase tracking-[0.3em] text-primary">
           The ride
         </div>
-        <h1 className="mt-3 display text-5xl md:text-7xl max-w-3xl leading-none">
+        <h1 className="mt-3 display text-5xl leading-none text-foreground md:max-w-3xl md:text-7xl">
           Most Sundays. Weather permitting.
         </h1>
 
@@ -212,16 +206,16 @@ export function RideSection() {
           ].map((c) => (
             <div
               key={c.t}
-              className="rounded-2xl border border-primary-foreground/15 bg-primary-foreground/5 p-8 backdrop-blur-sm"
+              className="rounded-2xl border border-border bg-background p-8"
             >
-              <div className="text-xs uppercase tracking-widest text-primary-glow">{c.k}</div>
-              <h2 className="mt-3 display text-3xl">{c.t}</h2>
-              <p className="mt-3 text-primary-foreground/75">{c.d}</p>
+              <div className="text-xs uppercase tracking-widest text-primary">{c.k}</div>
+              <h2 className="mt-3 display text-3xl text-foreground">{c.t}</h2>
+              <p className="mt-3 text-muted-foreground">{c.d}</p>
             </div>
           ))}
         </div>
 
-        <div className="mt-12 overflow-hidden rounded-3xl shadow-purple">
+        <div className="mt-12 overflow-hidden rounded-3xl shadow-soft">
           <img
             src={bikeImg}
             alt="Close up of a road bike"
@@ -305,28 +299,31 @@ export function JoinSection() {
   };
 
   return (
-    <section className="py-24 md:py-32 bg-hero-gradient text-primary-foreground">
+    <section className="py-24 md:py-32">
       <div className="mx-auto max-w-5xl px-6">
-        <div className="text-xs font-semibold uppercase tracking-[0.3em] text-primary-glow">
+        <div className="text-xs font-semibold uppercase tracking-[0.3em] text-primary">
           Join the Sloggers
         </div>
-        <h1 className="mt-3 display text-5xl md:text-7xl leading-none max-w-3xl">
+        <h1 className="mt-3 display max-w-3xl text-5xl leading-none text-foreground md:text-7xl">
           Fancy a Sunday spin with us?
         </h1>
-        <p className="mt-6 max-w-2xl text-lg text-primary-foreground/80">
+        <p className="mt-6 max-w-2xl text-lg text-muted-foreground">
           Drop your details in and one of us will get back to you with this Sunday's meeting point.
           First ride's on us — well, the ride part anyway. You buy your own cake.
         </p>
 
         {status === "sent" ? (
-          <div className="mt-12 rounded-3xl bg-primary-foreground/10 border border-primary-foreground/20 p-10 text-center backdrop-blur">
-            <div className="display text-4xl">You're in the group chat.</div>
-            <p className="mt-3 text-primary-foreground/80">
+          <div className="mt-12 rounded-3xl border border-border bg-card p-10 text-center shadow-soft">
+            <div className="display text-4xl text-foreground">You're in the group chat.</div>
+            <p className="mt-3 text-muted-foreground">
               We'll be in touch shortly with details for this Sunday. See you on the start line.
             </p>
           </div>
         ) : (
-          <form onSubmit={submit} className="mt-12 grid gap-4 md:grid-cols-2">
+          <form
+            onSubmit={submit}
+            className="mt-12 grid gap-4 rounded-3xl border border-border bg-card p-6 shadow-soft md:grid-cols-2 md:p-8"
+          >
             <JoinInput
               label="Name"
               value={form.name}
@@ -349,14 +346,14 @@ export function JoinSection() {
               required
             />
             <div>
-              <label className="block text-xs uppercase tracking-widest text-primary-glow mb-2">
+              <label className="mb-2 block text-xs uppercase tracking-widest text-muted-foreground">
                 Riding experience
               </label>
               <select
                 value={form.experience}
                 onChange={(e) => setForm({ ...form, experience: e.target.value })}
                 required
-                className="w-full rounded-xl bg-primary-foreground/10 border border-primary-foreground/20 px-4 py-3 text-primary-foreground placeholder:text-primary-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary-glow"
+                className="w-full rounded-xl border border-input bg-background px-4 py-3 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
               >
                 <option value="" className="text-foreground">
                   Select one…
@@ -376,7 +373,7 @@ export function JoinSection() {
               </select>
             </div>
             <div className="md:col-span-2">
-              <label className="block text-xs uppercase tracking-widest text-primary-glow mb-2">
+              <label className="mb-2 block text-xs uppercase tracking-widest text-muted-foreground">
                 Anything we should know?
               </label>
               <textarea
@@ -385,19 +382,19 @@ export function JoinSection() {
                 rows={4}
                 maxLength={500}
                 placeholder="Bike setup, favourite cake, anything at all…"
-                className="w-full rounded-xl bg-primary-foreground/10 border border-primary-foreground/20 px-4 py-3 text-primary-foreground placeholder:text-primary-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary-glow"
+                className="w-full rounded-xl border border-input bg-background px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
             <div className="md:col-span-2">
               {errorMessage ? (
-                <p className="mb-4 rounded-xl border border-red-300/40 bg-red-500/10 px-4 py-3 text-sm text-primary-foreground">
+                <p className="mb-4 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                   {errorMessage}
                 </p>
               ) : null}
               <button
                 type="submit"
                 disabled={status === "sending"}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary-glow px-10 py-4 text-sm font-bold uppercase tracking-wider text-primary-deep transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70 md:w-auto shadow-purple"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-10 py-4 text-sm font-bold uppercase tracking-wider text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70 md:w-auto"
               >
                 {status === "sending" ? (
                   <>
@@ -433,7 +430,7 @@ function JoinInput({
 }) {
   return (
     <div>
-      <label className="block text-xs uppercase tracking-widest text-primary-glow mb-2">
+      <label className="mb-2 block text-xs uppercase tracking-widest text-muted-foreground">
         {label}
       </label>
       <input
@@ -443,7 +440,7 @@ function JoinInput({
         required={required}
         placeholder={placeholder}
         maxLength={120}
-        className="w-full rounded-xl bg-primary-foreground/10 border border-primary-foreground/20 px-4 py-3 text-primary-foreground placeholder:text-primary-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary-glow"
+        className="w-full rounded-xl border border-input bg-background px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
       />
     </div>
   );
