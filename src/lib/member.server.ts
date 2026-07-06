@@ -159,8 +159,26 @@ export const approveMember = createServerFn({ method: "POST" })
   .validator((data: { memberId: string }) => data)
   .handler(async ({ data }) => {
     await requireAdmin();
-    const { updateMemberStatus } = await import("./member-store");
+    const { findMemberById, updateMemberStatus } = await import("./member-store");
+    const existing = await findMemberById(data.memberId);
+    if (!existing) {
+      throw new Error("Member not found.");
+    }
+
     const member = await updateMemberStatus(data.memberId, "approved");
+
+    if (existing.status !== "approved") {
+      try {
+        const { sendMemberApprovalEmail } = await import("./member-email");
+        await sendMemberApprovalEmail({
+          email: member.email,
+          displayName: member.displayName,
+        });
+      } catch (error) {
+        console.error("Failed to send member approval email:", error);
+      }
+    }
+
     return { member: toPublicMember(member) };
   });
 
