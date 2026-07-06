@@ -18,7 +18,9 @@ import {
   updateRideLocation,
 } from "@/lib/ride.server";
 import {
+  estimateEtaToYou,
   formatDistance,
+  formatEtaToYou,
   formatLastSeen,
   formatReportTime,
   formatReportType,
@@ -562,20 +564,24 @@ function RiderDetail({
     );
   }
 
-  const distanceFromYou =
+  const distanceKm =
     currentRider?.latitude != null &&
     currentRider.longitude != null &&
     rider.latitude != null &&
     rider.longitude != null &&
     rider.id !== currentRider.id
-      ? formatDistance(
-          haversineKm(
-            currentRider.latitude,
-            currentRider.longitude,
-            rider.latitude,
-            rider.longitude,
-          ),
+      ? haversineKm(
+          rider.latitude,
+          rider.longitude,
+          currentRider.latitude,
+          currentRider.longitude,
         )
+      : null;
+
+  const distanceFromYou = distanceKm != null ? formatDistance(distanceKm) : null;
+  const etaToYou =
+    distanceKm != null && rider.id !== currentRider?.id
+      ? formatEtaToYou(estimateEtaToYou(distanceKm, rider.speedKmh), distanceKm)
       : null;
 
   return (
@@ -616,6 +622,12 @@ function RiderDetail({
           <div>
             <dt className="text-xs uppercase tracking-widest text-muted-foreground">Distance from you</dt>
             <dd className="mt-1 font-medium">{distanceFromYou}</dd>
+          </div>
+        ) : null}
+        {etaToYou ? (
+          <div>
+            <dt className="text-xs uppercase tracking-widest text-muted-foreground">ETA to you</dt>
+            <dd className="mt-1 font-medium">{etaToYou}</dd>
           </div>
         ) : null}
         {rider.latitude != null && rider.longitude != null ? (

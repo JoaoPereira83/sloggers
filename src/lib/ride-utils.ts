@@ -109,3 +109,60 @@ export function formatReportType(type: RideReportType) {
 export function formatReportTime(createdAt: string) {
   return formatLastSeen(createdAt).replace("No location yet", "Just now");
 }
+
+const DEFAULT_RIDE_SPEED_KMH = 20;
+
+export type EtaToYouResult =
+  | { kind: "here" }
+  | { kind: "stopped" }
+  | { kind: "eta"; minutes: number; speedKmh: number; usingDefaultSpeed: boolean };
+
+export function estimateEtaToYou(
+  distanceKm: number,
+  riderSpeedKmh: number | null | undefined,
+): EtaToYouResult {
+  if (distanceKm < 0.05) {
+    return { kind: "here" };
+  }
+
+  const isMoving = riderSpeedKmh != null && riderSpeedKmh >= STOPPED_SPEED_KMH;
+  const speedKmh = isMoving ? riderSpeedKmh : DEFAULT_RIDE_SPEED_KMH;
+  const minutes = Math.max(1, Math.round((distanceKm / speedKmh) * 60));
+
+  if (!isMoving) {
+    return { kind: "stopped" };
+  }
+
+  return {
+    kind: "eta",
+    minutes,
+    speedKmh,
+    usingDefaultSpeed: false,
+  };
+}
+
+export function formatEtaToYou(result: EtaToYouResult, distanceKm?: number) {
+  if (result.kind === "here") {
+    return "With you now";
+  }
+
+  if (result.kind === "stopped") {
+    if (distanceKm != null && distanceKm >= 0.05) {
+      const minutes = Math.max(1, Math.round((distanceKm / DEFAULT_RIDE_SPEED_KMH) * 60));
+      return `Stopped now · roughly ${formatEtaDuration(minutes)} if they ride at ${DEFAULT_RIDE_SPEED_KMH} km/h`;
+    }
+    return "Stopped — not moving toward you";
+  }
+
+  const pace = result.usingDefaultSpeed
+    ? `estimated at ${result.speedKmh} km/h`
+    : `at ${Math.round(result.speedKmh)} km/h`;
+  return `About ${formatEtaDuration(result.minutes)} to you (${pace})`;
+}
+
+function formatEtaDuration(minutes: number) {
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return remainder > 0 ? `${hours} hr ${remainder} min` : `${hours} hr`;
+}
