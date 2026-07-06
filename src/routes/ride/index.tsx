@@ -552,11 +552,7 @@ function RidePage() {
               </div>
 
               <div className="hidden space-y-6 lg:block">
-                {!isOnRide ? (
-                  <div className="rounded-2xl border border-primary/20 bg-primary/5 px-5 py-4 text-sm text-foreground/85">
-                    You&apos;re watching the live map. Your location is not being shared.
-                  </div>
-                ) : (
+                {isOnRide ? (
                   <SharingControls
                     riderName={currentRider?.name ?? member?.displayName ?? null}
                     isSharing={isSharing}
@@ -569,7 +565,7 @@ function RidePage() {
                     isSharingUpdating={sharingMutation.isPending}
                     isLeaving={leaveMutation.isPending}
                   />
-                )}
+                ) : null}
                 <RideMap
                   riders={sharingRiders}
                   selectedRiderId={selectedRiderId}
