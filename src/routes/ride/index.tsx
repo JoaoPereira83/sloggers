@@ -1077,9 +1077,13 @@ function EmptyRideState({
       <button
         type="button"
         onClick={onToggleAdmin}
-        className="mt-6 text-sm font-medium text-primary hover:underline"
+        className={`mt-6 inline-flex rounded-full px-6 py-3 text-sm font-semibold uppercase tracking-wider transition ${
+          showAdmin
+            ? "border border-primary/30 text-primary hover:bg-primary/5"
+            : "bg-primary text-primary-foreground hover:opacity-90"
+        }`}
       >
-        {showAdmin ? "Hide ride lead controls" : "Ride lead: start today&apos;s ride"}
+        {showAdmin ? "Hide ride lead controls" : "Ride lead: start today's ride"}
       </button>
       {showAdmin ? (
         <form
@@ -1134,7 +1138,11 @@ function AdminPanel({
       <button
         type="button"
         onClick={onToggleAdmin}
-        className="text-sm font-medium text-primary hover:underline"
+        className={`inline-flex rounded-full px-6 py-3 text-sm font-semibold uppercase tracking-wider transition ${
+          showAdmin
+            ? "border border-primary/30 text-primary hover:bg-primary/5"
+            : "border border-primary/30 text-primary hover:bg-primary/5"
+        }`}
       >
         {showAdmin ? "Hide ride lead controls" : "Ride lead: end ride for everyone"}
       </button>
