@@ -250,7 +250,7 @@ export async function updateRideLocationInSupabase(
   if (!rider) throw new Error("You are not on this ride.");
 
   const updatedAt = new Date().toISOString();
-  const speedKmh = computeSpeedKmh({
+  const nextSpeed = computeSpeedKmh({
     previous:
       rider.latitude != null && rider.longitude != null && rider.updatedAt
         ? {
@@ -264,6 +264,7 @@ export async function updateRideLocationInSupabase(
     updatedAt,
     gpsSpeedKmh,
   });
+  const speedKmh = nextSpeed ?? rider.speedKmh ?? 0;
 
   const { error } = await supabase
     .from("ride_riders")

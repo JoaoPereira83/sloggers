@@ -28,6 +28,13 @@ export function formatLastSeen(updatedAt: string | null) {
   return `${Math.floor(minutes / 60)} hr ago`;
 }
 
+const STOPPED_SPEED_KMH = 2;
+
+function normalizeSpeedKmh(kmh: number) {
+  if (kmh < STOPPED_SPEED_KMH) return 0;
+  return Math.round(kmh * 10) / 10;
+}
+
 export function computeSpeedKmh(input: {
   previous: { latitude: number; longitude: number; updatedAt: string } | null;
   latitude: number;
@@ -38,14 +45,14 @@ export function computeSpeedKmh(input: {
   const { previous, latitude, longitude, updatedAt, gpsSpeedKmh } = input;
 
   if (gpsSpeedKmh != null && gpsSpeedKmh >= 0 && gpsSpeedKmh <= 80) {
-    return Math.round(gpsSpeedKmh * 10) / 10;
+    return normalizeSpeedKmh(gpsSpeedKmh);
   }
 
-  if (!previous) return null;
+  if (!previous) return 0;
 
   const seconds =
     (new Date(updatedAt).getTime() - new Date(previous.updatedAt).getTime()) / 1000;
-  if (seconds < 5) return null;
+  if (seconds < 1) return null;
 
   const km = haversineKm(
     previous.latitude,
@@ -53,16 +60,23 @@ export function computeSpeedKmh(input: {
     latitude,
     longitude,
   );
-  const kmh = (km / seconds) * 3600;
 
-  if (kmh < 0.5) return 0;
+  // GPS drift while standing still — treat small movement as stopped.
+  if (km < 0.03) return 0;
+
+  const kmh = (km / seconds) * 3600;
   if (kmh > 80) return null;
 
-  return Math.round(kmh * 10) / 10;
+  return normalizeSpeedKmh(kmh);
 }
 
-export function formatSpeed(speedKmh: number | null | undefined) {
-  if (speedKmh == null) return null;
-  if (speedKmh < 0.5) return "Stopped";
+export function formatSpeed(
+  speedKmh: number | null | undefined,
+  options?: { hasLocation?: boolean },
+) {
+  if (speedKmh == null) {
+    return options?.hasLocation ? "Stopped" : null;
+  }
+  if (speedKmh < STOPPED_SPEED_KMH) return "Stopped";
   return `${Math.round(speedKmh)} km/h`;
 }

@@ -401,8 +401,10 @@ function RiderList({
                 </div>
                 <div className="text-xs text-muted-foreground">
                   {rider.isSharing ? formatLastSeen(rider.updatedAt) : "Not sharing location"}
-                  {rider.isSharing && formatSpeed(rider.speedKmh)
-                    ? ` · ${formatSpeed(rider.speedKmh)}`
+                  {rider.isSharing &&
+                  (rider.latitude != null || rider.speedKmh != null) &&
+                  formatSpeed(rider.speedKmh, { hasLocation: rider.latitude != null })
+                    ? ` · ${formatSpeed(rider.speedKmh, { hasLocation: rider.latitude != null })}`
                     : null}
                 </div>
               </div>
@@ -477,10 +479,12 @@ function RiderDetail({
           <dt className="text-xs uppercase tracking-widest text-muted-foreground">Last update</dt>
           <dd className="mt-1 font-medium">{formatLastSeen(rider.updatedAt)}</dd>
         </div>
-        {rider.isSharing && formatSpeed(rider.speedKmh) ? (
+        {rider.isSharing && (rider.latitude != null || rider.speedKmh != null) ? (
           <div>
             <dt className="text-xs uppercase tracking-widest text-muted-foreground">Speed</dt>
-            <dd className="mt-1 font-medium">{formatSpeed(rider.speedKmh)}</dd>
+            <dd className="mt-1 font-medium">
+              {formatSpeed(rider.speedKmh, { hasLocation: rider.latitude != null }) ?? "—"}
+            </dd>
           </div>
         ) : null}
         {distanceFromYou ? (

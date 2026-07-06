@@ -149,7 +149,7 @@ export async function updateRideLocationStore(
   if (!rider) throw new Error("You are not on this ride.");
 
   const updatedAt = new Date().toISOString();
-  const speedKmh = computeSpeedKmh({
+  const nextSpeed = computeSpeedKmh({
     previous:
       rider.latitude != null && rider.longitude != null && rider.updatedAt
         ? {
@@ -163,6 +163,7 @@ export async function updateRideLocationStore(
     updatedAt,
     gpsSpeedKmh,
   });
+  const speedKmh = nextSpeed ?? rider.speedKmh ?? 0;
 
   rider.latitude = latitude;
   rider.longitude = longitude;
