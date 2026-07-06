@@ -14,7 +14,7 @@ import {
   startRide,
   updateRideLocation,
 } from "@/lib/ride.server";
-import { formatDistance, formatLastSeen, haversineKm } from "@/lib/ride-utils";
+import { formatDistance, formatLastSeen, formatSpeed, haversineKm } from "@/lib/ride-utils";
 import type { RideRider } from "@/lib/ride-types";
 
 export const Route = createFileRoute("/ride/")({
@@ -105,21 +105,30 @@ function RidePage() {
     },
   });
 
-  const pushLocation = useCallback(async (latitude: number, longitude: number) => {
-    try {
-      await updateRideLocation({ data: { latitude, longitude } });
-      setLocationError(null);
-    } catch (error) {
-      setLocationError(error instanceof Error ? error.message : "Could not update location.");
-    }
-  }, []);
+  const pushLocation = useCallback(
+    async (latitude: number, longitude: number, speedMs?: number | null) => {
+      try {
+        const speedKmh =
+          speedMs != null && speedMs >= 0 ? Math.round(speedMs * 3.6 * 10) / 10 : undefined;
+        await updateRideLocation({ data: { latitude, longitude, speedKmh } });
+        setLocationError(null);
+      } catch (error) {
+        setLocationError(error instanceof Error ? error.message : "Could not update location.");
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!isJoined || !isActive || !isSharing || !navigator.geolocation) return;
 
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
-        void pushLocation(position.coords.latitude, position.coords.longitude);
+        void pushLocation(
+          position.coords.latitude,
+          position.coords.longitude,
+          position.coords.speed,
+        );
       },
       (error) => {
         setLocationError(error.message || "Location permission denied.");
@@ -130,7 +139,11 @@ function RidePage() {
     const intervalId = window.setInterval(() => {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          void pushLocation(position.coords.latitude, position.coords.longitude);
+          void pushLocation(
+            position.coords.latitude,
+            position.coords.longitude,
+            position.coords.speed,
+          );
         },
         () => undefined,
         { enableHighAccuracy: true, maximumAge: 15_000, timeout: 20_000 },
@@ -388,6 +401,9 @@ function RiderList({
                 </div>
                 <div className="text-xs text-muted-foreground">
                   {rider.isSharing ? formatLastSeen(rider.updatedAt) : "Not sharing location"}
+                  {rider.isSharing && formatSpeed(rider.speedKmh)
+                    ? ` · ${formatSpeed(rider.speedKmh)}`
+                    : null}
                 </div>
               </div>
               <MapPin className="h-4 w-4 text-primary" />
@@ -461,6 +477,12 @@ function RiderDetail({
           <dt className="text-xs uppercase tracking-widest text-muted-foreground">Last update</dt>
           <dd className="mt-1 font-medium">{formatLastSeen(rider.updatedAt)}</dd>
         </div>
+        {rider.isSharing && formatSpeed(rider.speedKmh) ? (
+          <div>
+            <dt className="text-xs uppercase tracking-widest text-muted-foreground">Speed</dt>
+            <dd className="mt-1 font-medium">{formatSpeed(rider.speedKmh)}</dd>
+          </div>
+        ) : null}
         {distanceFromYou ? (
           <div>
             <dt className="text-xs uppercase tracking-widest text-muted-foreground">Distance from you</dt>

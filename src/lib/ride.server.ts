@@ -59,13 +59,13 @@ export const leaveRide = createServerFn({ method: "POST" }).handler(async () => 
 });
 
 export const updateRideLocation = createServerFn({ method: "POST" })
-  .validator((data: { latitude: number; longitude: number }) => data)
+  .validator((data: { latitude: number; longitude: number; speedKmh?: number | null }) => data)
   .handler(async ({ data }) => {
     const { updateRideLocationStore } = await import("./ride-store");
     const riderId = await getCurrentRiderId();
     if (!riderId) throw new Error("Join the ride before sharing your location.");
 
-    await updateRideLocationStore(riderId, data.latitude, data.longitude);
+    await updateRideLocationStore(riderId, data.latitude, data.longitude, data.speedKmh);
     return { ok: true as const };
   });
 

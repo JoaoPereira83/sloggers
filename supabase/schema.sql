@@ -16,6 +16,7 @@ create table if not exists public.ride_riders (
   latitude double precision,
   longitude double precision,
   updated_at timestamptz,
+  speed_kmh double precision,
   is_sharing boolean not null default true,
   unique (ride_id, name)
 );
@@ -27,3 +28,6 @@ create index if not exists ride_riders_ride_id_idx on public.ride_riders (ride_i
 -- RLS is disabled so inserts/updates are not blocked when using the API key.
 alter table public.rides disable row level security;
 alter table public.ride_riders disable row level security;
+
+-- If you already created the tables, run this once in the SQL editor:
+-- alter table public.ride_riders add column if not exists speed_kmh double precision;

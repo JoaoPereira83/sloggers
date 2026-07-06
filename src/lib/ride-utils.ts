@@ -27,3 +27,42 @@ export function formatLastSeen(updatedAt: string | null) {
   if (minutes < 60) return `${minutes} min ago`;
   return `${Math.floor(minutes / 60)} hr ago`;
 }
+
+export function computeSpeedKmh(input: {
+  previous: { latitude: number; longitude: number; updatedAt: string } | null;
+  latitude: number;
+  longitude: number;
+  updatedAt: string;
+  gpsSpeedKmh?: number | null;
+}) {
+  const { previous, latitude, longitude, updatedAt, gpsSpeedKmh } = input;
+
+  if (gpsSpeedKmh != null && gpsSpeedKmh >= 0 && gpsSpeedKmh <= 80) {
+    return Math.round(gpsSpeedKmh * 10) / 10;
+  }
+
+  if (!previous) return null;
+
+  const seconds =
+    (new Date(updatedAt).getTime() - new Date(previous.updatedAt).getTime()) / 1000;
+  if (seconds < 5) return null;
+
+  const km = haversineKm(
+    previous.latitude,
+    previous.longitude,
+    latitude,
+    longitude,
+  );
+  const kmh = (km / seconds) * 3600;
+
+  if (kmh < 0.5) return 0;
+  if (kmh > 80) return null;
+
+  return Math.round(kmh * 10) / 10;
+}
+
+export function formatSpeed(speedKmh: number | null | undefined) {
+  if (speedKmh == null) return null;
+  if (speedKmh < 0.5) return "Stopped";
+  return `${Math.round(speedKmh)} km/h`;
+}

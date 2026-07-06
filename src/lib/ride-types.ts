@@ -15,6 +15,7 @@ export type RideRider = {
   latitude: number | null;
   longitude: number | null;
   updatedAt: string | null;
+  speedKmh: number | null;
   isSharing: boolean;
 };
 

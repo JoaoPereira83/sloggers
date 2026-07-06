@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
+import { computeSpeedKmh } from "./ride-utils";
 import type { ActiveRide, RideRider, RideStore } from "./ride-types";
 
 type RideRow = {
@@ -18,6 +19,7 @@ type RiderRow = {
   latitude: number | null;
   longitude: number | null;
   updated_at: string | null;
+  speed_kmh: number | null;
   is_sharing: boolean;
 };
 
@@ -39,6 +41,7 @@ function mapRider(row: RiderRow): RideRider {
     latitude: row.latitude,
     longitude: row.longitude,
     updatedAt: row.updated_at,
+    speedKmh: row.speed_kmh ?? null,
     isSharing: row.is_sharing,
   };
 }
@@ -234,6 +237,7 @@ export async function updateRideLocationInSupabase(
   riderId: string,
   latitude: number,
   longitude: number,
+  gpsSpeedKmh?: number | null,
 ) {
   const supabase = getSupabaseAdmin();
   const store = await readRideStoreFromSupabase();
@@ -242,12 +246,32 @@ export async function updateRideLocationInSupabase(
     throw new Error("This ride is not active.");
   }
 
+  const rider = store.riders.find((entry) => entry.id === riderId);
+  if (!rider) throw new Error("You are not on this ride.");
+
+  const updatedAt = new Date().toISOString();
+  const speedKmh = computeSpeedKmh({
+    previous:
+      rider.latitude != null && rider.longitude != null && rider.updatedAt
+        ? {
+            latitude: rider.latitude,
+            longitude: rider.longitude,
+            updatedAt: rider.updatedAt,
+          }
+        : null,
+    latitude,
+    longitude,
+    updatedAt,
+    gpsSpeedKmh,
+  });
+
   const { error } = await supabase
     .from("ride_riders")
     .update({
       latitude,
       longitude,
-      updated_at: new Date().toISOString(),
+      updated_at: updatedAt,
+      speed_kmh: speedKmh,
       is_sharing: true,
     })
     .eq("id", riderId);

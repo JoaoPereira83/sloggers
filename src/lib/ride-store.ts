@@ -1,4 +1,5 @@
 import type { ActiveRide, RideRider, RideStore } from "./ride-types";
+import { computeSpeedKmh } from "./ride-utils";
 
 const missingSupabaseMessage =
   "Live ride map needs Supabase on Vercel. Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel → Settings → Environment Variables, then redeploy.";
@@ -106,6 +107,7 @@ export async function joinRideStore(name: string): Promise<RideRider> {
     latitude: null,
     longitude: null,
     updatedAt: null,
+    speedKmh: null,
     isSharing: true,
   };
 
@@ -130,10 +132,11 @@ export async function updateRideLocationStore(
   riderId: string,
   latitude: number,
   longitude: number,
+  gpsSpeedKmh?: number | null,
 ) {
   const { isSupabaseConfigured, updateRideLocationInSupabase } = await useSupabaseStore();
   if (isSupabaseConfigured()) {
-    await updateRideLocationInSupabase(riderId, latitude, longitude);
+    await updateRideLocationInSupabase(riderId, latitude, longitude, gpsSpeedKmh);
     return;
   }
 
@@ -145,9 +148,26 @@ export async function updateRideLocationStore(
   const rider = store.riders.find((entry) => entry.id === riderId);
   if (!rider) throw new Error("You are not on this ride.");
 
+  const updatedAt = new Date().toISOString();
+  const speedKmh = computeSpeedKmh({
+    previous:
+      rider.latitude != null && rider.longitude != null && rider.updatedAt
+        ? {
+            latitude: rider.latitude,
+            longitude: rider.longitude,
+            updatedAt: rider.updatedAt,
+          }
+        : null,
+    latitude,
+    longitude,
+    updatedAt,
+    gpsSpeedKmh,
+  });
+
   rider.latitude = latitude;
   rider.longitude = longitude;
-  rider.updatedAt = new Date().toISOString();
+  rider.updatedAt = updatedAt;
+  rider.speedKmh = speedKmh;
   rider.isSharing = true;
   await writeStore(store);
 }
