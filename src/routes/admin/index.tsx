@@ -18,6 +18,7 @@ import {
   listMembersForAdmin,
   rejectMember,
 } from "@/lib/member.server";
+import { sendMemberApprovalEmailFromBrowser } from "@/lib/member-approval-email";
 import type { GalleryItem } from "@/lib/gallery-types";
 import type { PublicMember } from "@/lib/member-types";
 
@@ -427,9 +428,38 @@ function AdminMembersPanel({
   isLoading: boolean;
   onChanged: () => void;
 }) {
+  const [emailNotice, setEmailNotice] = useState<string | null>(null);
+
   const approveMutation = useMutation({
-    mutationFn: (memberId: string) => approveMember({ data: { memberId } }),
-    onSuccess: onChanged,
+    mutationFn: async (member: PublicMember) => {
+      const result = await approveMember({ data: { memberId: member.id } });
+      return { result, member };
+    },
+    onSuccess: async ({ result, member }) => {
+      onChanged();
+
+      if (result.emailSent) {
+        setEmailNotice(`Approved ${member.displayName}. Confirmation email sent to ${member.email}.`);
+        return;
+      }
+
+      try {
+        await sendMemberApprovalEmailFromBrowser({
+          email: member.email,
+          displayName: member.displayName,
+        });
+        setEmailNotice(`Approved ${member.displayName}. Confirmation email sent to ${member.email}.`);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Could not send the approval email.";
+        setEmailNotice(
+          `Approved ${member.displayName}, but the confirmation email could not be sent (${message}).`,
+        );
+      }
+    },
+    onError: () => {
+      setEmailNotice(null);
+    },
   });
 
   const rejectMutation = useMutation({
@@ -442,6 +472,11 @@ function AdminMembersPanel({
 
   return (
     <div className="mt-12 space-y-12">
+      {emailNotice ? (
+        <p className="rounded-2xl border border-border bg-card px-4 py-3 text-sm text-foreground">
+          {emailNotice}
+        </p>
+      ) : null}
       <section className="rounded-3xl border border-border bg-card p-8 shadow-soft">
         <h2 className="display text-3xl">Pending approvals</h2>
         <p className="mt-2 text-muted-foreground">
@@ -472,7 +507,7 @@ function AdminMembersPanel({
                   <button
                     type="button"
                     disabled={approveMutation.isPending}
-                    onClick={() => approveMutation.mutate(member.id)}
+                    onClick={() => approveMutation.mutate(member)}
                     className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
                   >
                     <Check className="h-4 w-4" />
@@ -528,7 +563,7 @@ function AdminMembersPanel({
                     <button
                       type="button"
                       disabled={approveMutation.isPending}
-                      onClick={() => approveMutation.mutate(member.id)}
+                      onClick={() => approveMutation.mutate(member)}
                       className="text-sm text-primary hover:underline"
                     >
                       Approve

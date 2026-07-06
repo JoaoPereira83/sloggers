@@ -166,20 +166,23 @@ export const approveMember = createServerFn({ method: "POST" })
     }
 
     const member = await updateMemberStatus(data.memberId, "approved");
+    const publicMember = toPublicMember(member);
+    let emailSent = false;
 
     if (existing.status !== "approved") {
       try {
-        const { sendMemberApprovalEmail } = await import("./member-email");
-        await sendMemberApprovalEmail({
+        const { sendMemberApprovalEmailViaResend } = await import("./member-email");
+        const result = await sendMemberApprovalEmailViaResend({
           email: member.email,
           displayName: member.displayName,
         });
+        emailSent = result.sent;
       } catch (error) {
-        console.error("Failed to send member approval email:", error);
+        console.error("Failed to send member approval email via Resend:", error);
       }
     }
 
-    return { member: toPublicMember(member) };
+    return { member: publicMember, emailSent };
   });
 
 export const rejectMember = createServerFn({ method: "POST" })
