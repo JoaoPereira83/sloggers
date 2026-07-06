@@ -10,9 +10,11 @@ import {
   getRideSnapshot,
   joinRide,
   leaveRide,
+  deleteRideReport,
   setRideSharing,
   startRide,
   submitRideReport,
+  updateRideReport,
   updateRideLocation,
 } from "@/lib/ride.server";
 import {
@@ -61,6 +63,9 @@ function RidePage() {
   const [showReportForm, setShowReportForm] = useState(false);
   const [reportType, setReportType] = useState<RideReportType>("mechanical");
   const [reportMessage, setReportMessage] = useState("");
+  const [editingReportId, setEditingReportId] = useState<string | null>(null);
+  const [editReportType, setEditReportType] = useState<RideReportType>("mechanical");
+  const [editReportMessage, setEditReportMessage] = useState("");
 
   const rideQuery = useQuery({
     queryKey: ["ride-snapshot"],
@@ -131,6 +136,29 @@ function RidePage() {
     },
   });
 
+  const updateReportMutation = useMutation({
+    mutationFn: (input: {
+      reportId: string;
+      type: RideReportType;
+      message?: string;
+      latitude?: number;
+      longitude?: number;
+    }) => updateRideReport({ data: input }),
+    onSuccess: () => {
+      setEditingReportId(null);
+      setEditReportMessage("");
+      invalidate();
+    },
+  });
+
+  const deleteReportMutation = useMutation({
+    mutationFn: (reportId: string) => deleteRideReport({ data: { reportId } }),
+    onSuccess: () => {
+      setEditingReportId(null);
+      invalidate();
+    },
+  });
+
   const pushLocation = useCallback(
     async (latitude: number, longitude: number, speedMs?: number | null) => {
       try {
@@ -182,6 +210,13 @@ function RidePage() {
     };
   }, [isJoined, isActive, isSharing, pushLocation]);
 
+  useEffect(() => {
+    if (!isSharing) {
+      setShowReportForm(false);
+      setEditingReportId(null);
+    }
+  }, [isSharing]);
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <SiteNav />
@@ -232,6 +267,7 @@ function RidePage() {
               />
 
               <ReportPanel
+                isSharing={isSharing}
                 showForm={showReportForm}
                 onToggleForm={() => setShowReportForm((value) => !value)}
                 reportType={reportType}
@@ -253,7 +289,43 @@ function RidePage() {
               {snapshot?.reports.length ? (
                 <ReportsFeed
                   reports={snapshot.reports}
+                  currentRiderId={snapshot.currentRiderId ?? null}
+                  isSharing={isSharing}
+                  editingReportId={editingReportId}
+                  editReportType={editReportType}
+                  editReportMessage={editReportMessage}
                   onSelectRider={setSelectedRiderId}
+                  onStartEdit={(report) => {
+                    setEditingReportId(report.id);
+                    setEditReportType(report.type);
+                    setEditReportMessage(report.message ?? "");
+                  }}
+                  onCancelEdit={() => setEditingReportId(null)}
+                  onEditReportTypeChange={setEditReportType}
+                  onEditReportMessageChange={setEditReportMessage}
+                  onSaveEdit={() => {
+                    if (!editingReportId) return;
+                    updateReportMutation.mutate({
+                      reportId: editingReportId,
+                      type: editReportType,
+                      message: editReportMessage.trim() || undefined,
+                      latitude: currentRider?.latitude ?? undefined,
+                      longitude: currentRider?.longitude ?? undefined,
+                    });
+                  }}
+                  onDelete={(reportId) => deleteReportMutation.mutate(reportId)}
+                  isSaving={updateReportMutation.isPending}
+                  isDeleting={deleteReportMutation.isPending}
+                  saveError={
+                    updateReportMutation.error instanceof Error
+                      ? updateReportMutation.error.message
+                      : null
+                  }
+                  deleteError={
+                    deleteReportMutation.error instanceof Error
+                      ? deleteReportMutation.error.message
+                      : null
+                  }
                 />
               ) : null}
 
@@ -562,6 +634,7 @@ function RiderDetail({
 }
 
 function ReportPanel({
+  isSharing,
   showForm,
   onToggleForm,
   reportType,
@@ -572,6 +645,7 @@ function ReportPanel({
   isSubmitting,
   error,
 }: {
+  isSharing: boolean;
   showForm: boolean;
   onToggleForm: () => void;
   reportType: RideReportType;
@@ -591,80 +665,160 @@ function ReportPanel({
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Report an accident, mechanical, or if someone is lost — the group will see it here.
+            {isSharing
+              ? " You can update or delete your own reports while sharing location."
+              : " Turn location sharing on to send or manage reports."}
           </p>
         </div>
         <button
           type="button"
           onClick={onToggleForm}
-          className="inline-flex items-center gap-2 rounded-full border border-destructive/30 bg-destructive/5 px-5 py-2 text-sm font-semibold uppercase tracking-wider text-destructive"
+          disabled={!isSharing}
+          className="inline-flex items-center gap-2 rounded-full border border-destructive/30 bg-destructive/5 px-5 py-2 text-sm font-semibold uppercase tracking-wider text-destructive disabled:cursor-not-allowed disabled:opacity-50"
         >
           <TriangleAlert className="h-4 w-4" />
           {showForm ? "Cancel report" : "Report an issue"}
         </button>
       </div>
 
-      {showForm ? (
-        <form
-          className="mt-5 space-y-4 border-t border-border pt-5"
-          onSubmit={(event) => {
-            event.preventDefault();
-            onSubmit();
-          }}
-        >
-          <div className="grid gap-3 sm:grid-cols-2">
-            {RIDE_REPORT_OPTIONS.map((option) => (
-              <label
-                key={option.type}
-                className={`cursor-pointer rounded-2xl border px-4 py-3 transition ${
-                  reportType === option.type
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:bg-muted/40"
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="report-type"
-                  value={option.type}
-                  checked={reportType === option.type}
-                  onChange={() => onReportTypeChange(option.type)}
-                  className="sr-only"
-                />
-                <div className="font-medium">{option.label}</div>
-                <div className="mt-1 text-xs text-muted-foreground">{option.description}</div>
-              </label>
-            ))}
-          </div>
-          <label className="block text-xs uppercase tracking-widest text-muted-foreground">
-            Extra details (optional)
-          </label>
-          <textarea
-            value={reportMessage}
-            onChange={(event) => onReportMessageChange(event.target.value)}
-            placeholder="e.g. Puncture on B445, or waiting at the crossroads"
-            rows={3}
-            className="w-full rounded-xl border border-input bg-background px-4 py-3"
-          />
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="inline-flex items-center gap-2 rounded-full bg-destructive px-6 py-3 text-sm font-semibold uppercase tracking-wider text-destructive-foreground"
-          >
-            {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <TriangleAlert className="h-4 w-4" />}
-            Send report to group
-          </button>
-        </form>
+      {showForm && isSharing ? (
+        <ReportFormFields
+          reportType={reportType}
+          onReportTypeChange={onReportTypeChange}
+          reportMessage={reportMessage}
+          onReportMessageChange={onReportMessageChange}
+          onSubmit={onSubmit}
+          isSubmitting={isSubmitting}
+          error={error}
+          submitLabel="Send report to group"
+        />
       ) : null}
     </div>
   );
 }
 
+function ReportFormFields({
+  reportType,
+  onReportTypeChange,
+  reportMessage,
+  onReportMessageChange,
+  onSubmit,
+  onCancel,
+  isSubmitting,
+  error,
+  submitLabel,
+}: {
+  reportType: RideReportType;
+  onReportTypeChange: (value: RideReportType) => void;
+  reportMessage: string;
+  onReportMessageChange: (value: string) => void;
+  onSubmit: () => void;
+  onCancel?: () => void;
+  isSubmitting: boolean;
+  error: string | null;
+  submitLabel: string;
+}) {
+  return (
+    <form
+      className="mt-5 space-y-4 border-t border-border pt-5"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmit();
+      }}
+    >
+      <div className="grid gap-3 sm:grid-cols-2">
+        {RIDE_REPORT_OPTIONS.map((option) => (
+          <label
+            key={option.type}
+            className={`cursor-pointer rounded-2xl border px-4 py-3 transition ${
+              reportType === option.type
+                ? "border-primary bg-primary/5"
+                : "border-border hover:bg-muted/40"
+            }`}
+          >
+            <input
+              type="radio"
+              name="report-type"
+              value={option.type}
+              checked={reportType === option.type}
+              onChange={() => onReportTypeChange(option.type)}
+              className="sr-only"
+            />
+            <div className="font-medium">{option.label}</div>
+            <div className="mt-1 text-xs text-muted-foreground">{option.description}</div>
+          </label>
+        ))}
+      </div>
+      <label className="block text-xs uppercase tracking-widest text-muted-foreground">
+        Extra details (optional)
+      </label>
+      <textarea
+        value={reportMessage}
+        onChange={(event) => onReportMessageChange(event.target.value)}
+        placeholder="e.g. Puncture on B445, or waiting at the crossroads"
+        rows={3}
+        className="w-full rounded-xl border border-input bg-background px-4 py-3"
+      />
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      <div className="flex flex-wrap gap-3">
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="inline-flex items-center gap-2 rounded-full bg-destructive px-6 py-3 text-sm font-semibold uppercase tracking-wider text-destructive-foreground"
+        >
+          {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <TriangleAlert className="h-4 w-4" />}
+          {submitLabel}
+        </button>
+        {onCancel ? (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-full border border-border px-6 py-3 text-sm font-medium text-muted-foreground"
+          >
+            Cancel
+          </button>
+        ) : null}
+      </div>
+    </form>
+  );
+}
+
 function ReportsFeed({
   reports,
+  currentRiderId,
+  isSharing,
+  editingReportId,
+  editReportType,
+  editReportMessage,
   onSelectRider,
+  onStartEdit,
+  onCancelEdit,
+  onEditReportTypeChange,
+  onEditReportMessageChange,
+  onSaveEdit,
+  onDelete,
+  isSaving,
+  isDeleting,
+  saveError,
+  deleteError,
 }: {
   reports: RideReport[];
+  currentRiderId: string | null;
+  isSharing: boolean;
+  editingReportId: string | null;
+  editReportType: RideReportType;
+  editReportMessage: string;
   onSelectRider: (riderId: string) => void;
+  onStartEdit: (report: RideReport) => void;
+  onCancelEdit: () => void;
+  onEditReportTypeChange: (value: RideReportType) => void;
+  onEditReportMessageChange: (value: string) => void;
+  onSaveEdit: () => void;
+  onDelete: (reportId: string) => void;
+  isSaving: boolean;
+  isDeleting: boolean;
+  saveError: string | null;
+  deleteError: string | null;
 }) {
   return (
     <section className="rounded-3xl border border-destructive/20 bg-destructive/5 p-6 shadow-soft">
@@ -673,25 +827,77 @@ function ReportsFeed({
         Alerts from riders on today&apos;s ride. Tap one to locate them on the map.
       </p>
       <div className="mt-4 space-y-3">
-        {reports.map((report) => (
-          <button
-            key={report.id}
-            type="button"
-            onClick={() => onSelectRider(report.riderId)}
-            className="flex w-full items-start justify-between gap-4 rounded-2xl border border-destructive/20 bg-background px-4 py-3 text-left transition hover:bg-muted/40"
-          >
-            <div>
-              <div className="font-medium">
-                {report.riderName} · {formatReportType(report.type)}
-              </div>
-              {report.message ? (
-                <p className="mt-1 text-sm text-muted-foreground">{report.message}</p>
-              ) : null}
-              <p className="mt-2 text-xs text-muted-foreground">{formatReportTime(report.createdAt)}</p>
+        {reports.map((report) => {
+          const isOwnReport = report.riderId === currentRiderId;
+          const canManage = isOwnReport && isSharing;
+          const isEditing = editingReportId === report.id;
+
+          return (
+            <div
+              key={report.id}
+              className="rounded-2xl border border-destructive/20 bg-background px-4 py-3"
+            >
+              {isEditing ? (
+                <ReportFormFields
+                  reportType={editReportType}
+                  onReportTypeChange={onEditReportTypeChange}
+                  reportMessage={editReportMessage}
+                  onReportMessageChange={onEditReportMessageChange}
+                  onSubmit={onSaveEdit}
+                  onCancel={onCancelEdit}
+                  isSubmitting={isSaving}
+                  error={saveError ?? deleteError}
+                  submitLabel="Save changes"
+                />
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => onSelectRider(report.riderId)}
+                    className="flex w-full items-start justify-between gap-4 text-left transition hover:opacity-90"
+                  >
+                    <div>
+                      <div className="font-medium">
+                        {report.riderName} · {formatReportType(report.type)}
+                        {isOwnReport ? " (you)" : ""}
+                      </div>
+                      {report.message ? (
+                        <p className="mt-1 text-sm text-muted-foreground">{report.message}</p>
+                      ) : null}
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {formatReportTime(report.createdAt)}
+                      </p>
+                    </div>
+                    <TriangleAlert className="mt-1 h-4 w-4 shrink-0 text-destructive" />
+                  </button>
+                  {canManage ? (
+                    <div className="mt-3 flex flex-wrap gap-3 border-t border-border pt-3">
+                      <button
+                        type="button"
+                        onClick={() => onStartEdit(report)}
+                        className="text-sm font-medium text-primary hover:underline"
+                      >
+                        Edit report
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isDeleting}
+                        onClick={() => onDelete(report.id)}
+                        className="text-sm font-medium text-destructive hover:underline disabled:opacity-50"
+                      >
+                        Delete report
+                      </button>
+                    </div>
+                  ) : isOwnReport ? (
+                    <p className="mt-3 border-t border-border pt-3 text-xs text-muted-foreground">
+                      Turn location sharing back on to edit or delete this report.
+                    </p>
+                  ) : null}
+                </>
+              )}
             </div>
-            <TriangleAlert className="mt-1 h-4 w-4 shrink-0 text-destructive" />
-          </button>
-        ))}
+          );
+        })}
       </div>
     </section>
   );

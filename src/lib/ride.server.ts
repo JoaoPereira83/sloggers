@@ -132,3 +132,39 @@ export const submitRideReport = createServerFn({ method: "POST" })
       longitude: data.longitude,
     });
   });
+
+export const updateRideReport = createServerFn({ method: "POST" })
+  .validator(
+    (data: {
+      reportId: string;
+      type: RideReportType;
+      message?: string;
+      latitude?: number;
+      longitude?: number;
+    }) => data,
+  )
+  .handler(async ({ data }) => {
+    const { updateRideReportStore } = await import("./ride-store");
+    const riderId = await getCurrentRiderId();
+    if (!riderId) throw new Error("Join the ride before updating a report.");
+
+    return updateRideReportStore({
+      reportId: data.reportId,
+      riderId,
+      type: data.type,
+      message: data.message,
+      latitude: data.latitude,
+      longitude: data.longitude,
+    });
+  });
+
+export const deleteRideReport = createServerFn({ method: "POST" })
+  .validator((data: { reportId: string }) => data)
+  .handler(async ({ data }) => {
+    const { deleteRideReportStore } = await import("./ride-store");
+    const riderId = await getCurrentRiderId();
+    if (!riderId) throw new Error("Join the ride before deleting a report.");
+
+    await deleteRideReportStore(data.reportId, riderId);
+    return { ok: true as const };
+  });

@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
+import { assertCanManageOwnReport, assertCanSubmitReport } from "./ride-reports";
 import { assertUniqueRideName, findRideRiderByName } from "./ride-names";
 import { computeSpeedKmh, duplicateRideNameMessage } from "./ride-utils";
 import type { ActiveRide, RideReport, RideReportType, RideRider, RideStore } from "./ride-types";
@@ -337,13 +338,7 @@ export async function submitRideReportInSupabase(input: {
 }): Promise<RideReport> {
   const supabase = getSupabaseAdmin();
   const store = await readRideStoreFromSupabase();
-
-  if (!store.ride || store.ride.status !== "active") {
-    throw new Error("There is no active ride to report on right now.");
-  }
-
-  const rider = store.riders.find((entry) => entry.id === input.riderId);
-  if (!rider) throw new Error("Join the ride before sending a report.");
+  const rider = assertCanSubmitReport(store, input.riderId);
 
   const message = input.message?.trim() || null;
   const latitude = input.latitude ?? rider.latitude;
@@ -352,7 +347,7 @@ export async function submitRideReportInSupabase(input: {
   const { data, error } = await supabase
     .from("ride_reports")
     .insert({
-      ride_id: store.ride.id,
+      ride_id: store.ride!.id,
       rider_id: rider.id,
       rider_name: rider.name,
       report_type: input.type,
@@ -368,4 +363,55 @@ export async function submitRideReportInSupabase(input: {
   }
 
   return mapReport(data as ReportRow);
+}
+
+export async function updateRideReportInSupabase(input: {
+  reportId: string;
+  riderId: string;
+  type: RideReportType;
+  message?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+}): Promise<RideReport> {
+  const supabase = getSupabaseAdmin();
+  const store = await readRideStoreFromSupabase();
+  const { rider } = assertCanManageOwnReport(store, input.riderId, input.reportId);
+
+  const message = input.message?.trim() || null;
+  const latitude = input.latitude ?? rider.latitude;
+  const longitude = input.longitude ?? rider.longitude;
+
+  const { data, error } = await supabase
+    .from("ride_reports")
+    .update({
+      report_type: input.type,
+      message,
+      latitude,
+      longitude,
+      rider_name: rider.name,
+    })
+    .eq("id", input.reportId)
+    .eq("rider_id", input.riderId)
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    throw new Error(toSupabaseErrorMessage(error?.message ?? "Could not update report."));
+  }
+
+  return mapReport(data as ReportRow);
+}
+
+export async function deleteRideReportInSupabase(reportId: string, riderId: string) {
+  const supabase = getSupabaseAdmin();
+  const store = await readRideStoreFromSupabase();
+  assertCanManageOwnReport(store, riderId, reportId);
+
+  const { error } = await supabase
+    .from("ride_reports")
+    .delete()
+    .eq("id", reportId)
+    .eq("rider_id", riderId);
+
+  if (error) throw new Error(toSupabaseErrorMessage(error.message));
 }

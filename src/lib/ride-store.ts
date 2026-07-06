@@ -1,4 +1,5 @@
 import type { ActiveRide, RideReport, RideReportType, RideRider, RideStore } from "./ride-types";
+import { assertCanManageOwnReport, assertCanSubmitReport } from "./ride-reports";
 import { assertUniqueRideName, findRideRiderByName } from "./ride-names";
 import { computeSpeedKmh } from "./ride-utils";
 
@@ -208,17 +209,11 @@ export async function submitRideReportStore(input: {
 
   const { randomUUID } = await import("node:crypto");
   const store = await readStore();
-
-  if (!store.ride || store.ride.status !== "active") {
-    throw new Error("There is no active ride to report on right now.");
-  }
-
-  const rider = store.riders.find((entry) => entry.id === input.riderId);
-  if (!rider) throw new Error("Join the ride before sending a report.");
+  const rider = assertCanSubmitReport(store, input.riderId);
 
   const report: RideReport = {
     id: randomUUID(),
-    rideId: store.ride.id,
+    rideId: store.ride!.id,
     riderId: rider.id,
     riderName: rider.name,
     type: input.type,
@@ -231,4 +226,43 @@ export async function submitRideReportStore(input: {
   store.reports = [report, ...(store.reports ?? [])];
   await writeStore(store);
   return report;
+}
+
+export async function updateRideReportStore(input: {
+  reportId: string;
+  riderId: string;
+  type: RideReportType;
+  message?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+}): Promise<RideReport> {
+  const { isSupabaseConfigured, updateRideReportInSupabase } = await useSupabaseStore();
+  if (isSupabaseConfigured()) {
+    return updateRideReportInSupabase(input);
+  }
+
+  const store = await readStore();
+  const { rider, report } = assertCanManageOwnReport(store, input.riderId, input.reportId);
+
+  report.type = input.type;
+  report.message = input.message?.trim() || null;
+  report.latitude = input.latitude ?? rider.latitude;
+  report.longitude = input.longitude ?? rider.longitude;
+  report.riderName = rider.name;
+
+  await writeStore(store);
+  return report;
+}
+
+export async function deleteRideReportStore(reportId: string, riderId: string) {
+  const { isSupabaseConfigured, deleteRideReportInSupabase } = await useSupabaseStore();
+  if (isSupabaseConfigured()) {
+    await deleteRideReportInSupabase(reportId, riderId);
+    return;
+  }
+
+  const store = await readStore();
+  assertCanManageOwnReport(store, riderId, reportId);
+  store.reports = (store.reports ?? []).filter((report) => report.id !== reportId);
+  await writeStore(store);
 }
