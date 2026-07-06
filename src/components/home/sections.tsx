@@ -62,7 +62,7 @@ export function HomeTeasersSection() {
     {
       to: "/about",
       label: "Who we are",
-      description: "Social riders in purple. Whoever turns up, one kit.",
+      description: "Friendly social riders. Wear your own kit — no club jersey required.",
     },
     {
       to: "/the-ride",
@@ -72,7 +72,7 @@ export function HomeTeasersSection() {
     {
       to: "/coffee",
       label: "Coffee stop",
-      description: "The bit non-cyclists don't understand. Cake included.",
+      description: "Coffee, cake, and a split kitty if you'd like to chip in at the stop.",
     },
     {
       to: "/gallery",
@@ -132,14 +132,14 @@ export function AboutSection() {
           <h1 className="mt-3 display text-5xl md:text-6xl leading-none">
             Whoever turns up.
             <br />
-            One kit.
+            Your kit.
           </h1>
         </div>
         <div className="md:col-span-3 space-y-6 text-lg text-muted-foreground">
           <p>
             The Sloggers started as a handful of riders who wanted a proper Sunday spin without the
-            ego of a race club. A few years on, we're still going strong — and yes, we all wear the
-            purple.
+            ego of a race club. A few years on, we're still going strong — plenty of us ride in
+            purple, but you're free to wear whatever kit you like.
           </p>
           <p>
             We're social riders first. Who turns up changes week to week — weather, plans, and
@@ -264,6 +264,10 @@ export function CafeSection() {
             since the first climb — not always halfway round, but always part of the plan. Flat
             white in one hand, Victoria sponge in the other. This is the bit non-cyclists don't
             understand.
+          </p>
+          <p className="mt-4 text-lg text-muted-foreground">
+            We run a split kitty at the cafe stop — chip in if you'd like to join in, no pressure
+            either way.
           </p>
           <blockquote className="mt-8 border-l-4 border-primary pl-6 italic text-xl text-foreground">
             "The ride is the excuse. The cake is the reason."
