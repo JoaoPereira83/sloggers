@@ -6,42 +6,48 @@ import bikeImg from "@/assets/bike-detail.jpg";
 
 export function HeroSection() {
   return (
-    <section className="relative flex min-h-screen items-end overflow-hidden pt-[calc(5rem+env(safe-area-inset-top))]">
+    <section className="relative flex min-h-[min(100svh,900px)] items-end overflow-hidden pt-[calc(5rem+env(safe-area-inset-top))] md:min-h-screen">
       <img
         src={heroImg}
-        alt="Southam Sloggers on the France tour"
+        alt="Southam Sloggers group ride"
         width={1200}
         height={1600}
-        className="absolute inset-0 h-full w-full object-cover object-center"
+        className="absolute inset-0 h-full w-full object-cover object-[center_35%]"
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-primary-deep via-primary-deep/70 to-primary-deep/30" />
-      <div className="absolute inset-0 bg-gradient-to-r from-primary-deep/85 via-primary-deep/40 to-transparent" />
-      <div className="relative mx-auto w-full max-w-7xl px-6 pb-20 pt-24">
-        <div className="max-w-2xl rounded-3xl border border-primary-foreground/10 bg-primary-deep/75 px-8 py-10 shadow-purple backdrop-blur-md">
-          <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.3em] text-primary-glow">
-            <span className="h-px w-10 bg-primary-glow" />
+
+      {/* Bottom gradient only — keeps riders' faces visible above */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            "linear-gradient(to top, oklch(0.25 0.14 305 / 0.92) 0%, oklch(0.25 0.14 305 / 0.55) 28%, transparent 58%)",
+        }}
+      />
+
+      <div className="relative mx-auto w-full max-w-7xl px-6 pb-14 pt-32 sm:pb-20">
+        <div className="max-w-2xl">
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-primary-glow drop-shadow-sm">
             Southam · Warwickshire
-          </div>
-          <h1 className="mt-4 display text-6xl leading-[0.95] text-primary-foreground drop-shadow-sm sm:text-8xl md:text-9xl">
+          </p>
+          <h1 className="mt-3 display text-5xl leading-[0.95] text-primary-foreground drop-shadow-md sm:text-7xl md:text-8xl">
             Sunday miles.
             <br />
             <span className="text-primary-glow">Serious cake.</span>
           </h1>
-          <p className="mt-6 max-w-xl text-lg font-medium leading-relaxed text-primary-foreground">
-            We're a friendly group of cyclists rolling out of Southam most Sundays — all depends
-            on the weather. Good roads, good pace, and we always stop somewhere for coffee and
-            cake.
+          <p className="mt-5 max-w-lg text-base font-medium leading-relaxed text-primary-foreground/90 drop-shadow-sm sm:text-lg">
+            A friendly Sunday cycling group from Southam — good roads, steady pace, and always a
+            stop for coffee and cake.
           </p>
-          <div className="mt-8 flex flex-wrap gap-4">
+          <div className="mt-7 flex flex-wrap gap-3 sm:gap-4">
             <Link
               to="/join"
-              className="rounded-full bg-primary-glow px-8 py-4 text-sm font-bold uppercase tracking-wider text-primary-deep hover:opacity-90 transition shadow-purple"
+              className="rounded-full bg-primary-glow px-7 py-3.5 text-sm font-bold uppercase tracking-wider text-primary-deep shadow-lg transition hover:opacity-90 sm:px-8 sm:py-4"
             >
               Request to join
             </Link>
             <Link
               to="/the-ride"
-              className="rounded-full border border-primary-foreground/40 px-8 py-4 text-sm font-bold uppercase tracking-wider text-primary-foreground hover:bg-primary-foreground/10 transition"
+              className="rounded-full border-2 border-primary-foreground/70 bg-primary-foreground/10 px-7 py-3.5 text-sm font-bold uppercase tracking-wider text-primary-foreground backdrop-blur-[2px] transition hover:bg-primary-foreground/20 sm:px-8 sm:py-4"
             >
               See the ride
             </Link>
