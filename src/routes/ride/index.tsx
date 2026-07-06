@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, LogOut, MapPin, Map, Navigation, Radio, TriangleAlert, User, Users } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { RideMap } from "@/components/RideMap";
 import { SiteFooter, SiteNav } from "@/components/SiteNav";
@@ -108,11 +108,18 @@ function RidePage() {
     queryClient.invalidateQueries({ queryKey: ["member-session"] });
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["ride-snapshot"] });
 
+  const hasSetDefaultName = useRef(false);
+
   useEffect(() => {
-    if (member?.displayName && !name) {
-      setName(member.displayName);
+    if (!member) {
+      hasSetDefaultName.current = false;
+      return;
     }
-  }, [member?.displayName, name]);
+    if (member.displayName && !hasSetDefaultName.current) {
+      setName(member.displayName);
+      hasSetDefaultName.current = true;
+    }
+  }, [member]);
 
   const logoutMutation = useMutation({
     mutationFn: () => logoutMember(),
@@ -135,6 +142,8 @@ function RidePage() {
       invalidate();
     },
   });
+
+  const isInRideSession = isOnRide || leaveMutation.isPending;
 
   const sharingMutation = useMutation({
     mutationFn: (nextSharing: boolean) => setRideSharing({ data: { isSharing: nextSharing } }),
@@ -320,7 +329,7 @@ function RidePage() {
       <main
         className="mx-auto max-w-6xl px-4 pb-[max(5rem,env(safe-area-inset-bottom))] pt-[calc(5.5rem+env(safe-area-inset-top))] sm:px-6 sm:pb-24 sm:pt-28"
       >
-        <div className={`max-w-3xl ${isOnRide ? "hidden sm:block" : ""}`}>
+        <div className={`max-w-3xl ${isInRideSession ? "hidden sm:block" : ""}`}>
           <div className="text-xs font-semibold uppercase tracking-[0.3em] text-primary">
             Live tracking
           </div>
@@ -393,7 +402,7 @@ function RidePage() {
         ) : (
         <>
 
-        {isOnRide ? (
+        {isInRideSession ? (
           <div className="mb-4 sm:hidden">
             <h1 className="display text-3xl leading-none">Live ride map</h1>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -403,14 +412,14 @@ function RidePage() {
           </div>
         ) : null}
 
-        <div className={`space-y-4 sm:mt-10 sm:space-y-6 ${isOnRide ? "mt-4" : "mt-8 sm:mt-10"}`}>
+        <div className={`space-y-4 sm:mt-10 sm:space-y-6 ${isInRideSession ? "mt-4" : "mt-8 sm:mt-10"}`}>
           <StatusBanner
             rideTitle={snapshot?.ride?.title}
             isActive={isActive}
             riderCount={sharingRiderCount}
           />
 
-          {!isOnRide ? (
+          {!isInRideSession ? (
             <>
               {sharingRiderCount > 0 ? (
                 <RideMap
@@ -422,6 +431,7 @@ function RidePage() {
               ) : null}
               <JoinCard
                 name={name}
+                accountName={member?.displayName}
                 onNameChange={setName}
                 onJoin={() => joinMutation.mutate(name)}
                 isJoining={joinMutation.isPending}
@@ -434,7 +444,7 @@ function RidePage() {
             <>
               <div className="sticky top-[calc(4.75rem+env(safe-area-inset-top))] z-30 -mx-4 border-b border-border/60 bg-background/95 px-4 py-3 backdrop-blur-md sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:backdrop-blur-none">
                 <SharingControls
-                  riderName={currentRider?.name ?? null}
+                  riderName={currentRider?.name ?? member?.displayName ?? null}
                   isSharing={isSharing}
                   locationError={locationError}
                   shareError={
@@ -618,6 +628,7 @@ function MobileRideTabs({
 
 function JoinCard({
   name,
+  accountName,
   onNameChange,
   onJoin,
   isJoining,
@@ -626,6 +637,7 @@ function JoinCard({
   othersSharing,
 }: {
   name: string;
+  accountName?: string;
   onNameChange: (value: string) => void;
   onJoin: () => void;
   isJoining: boolean;
@@ -633,6 +645,9 @@ function JoinCard({
   staleSession?: boolean;
   othersSharing?: number;
 }) {
+  const showAccountNameReset =
+    accountName && name.trim().toLowerCase() !== accountName.trim().toLowerCase();
+
   return (
     <form
       className="w-full rounded-2xl border-2 border-primary/25 bg-card p-5 shadow-soft sm:max-w-md sm:rounded-3xl sm:p-8"
@@ -658,17 +673,31 @@ function JoinCard({
         htmlFor="ride-join-name"
         className="mt-6 block text-sm font-semibold uppercase tracking-widest text-foreground/80"
       >
-        Your name
+        Your name on the map
       </label>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {accountName
+          ? `Defaults to ${accountName} from your account — change it if you use a different nickname on rides.`
+          : "Enter the name other riders will see on the map."}
+      </p>
       <input
         id="ride-join-name"
         value={name}
         onChange={(event) => onNameChange(event.target.value)}
-        placeholder="e.g. Joao, Blue, Sarah B"
+        placeholder={accountName ?? "e.g. Joao, Blue, Sarah B"}
         required
         autoComplete="name"
         className="mt-2 w-full rounded-xl border-2 border-input bg-background px-4 py-3.5 text-base text-foreground placeholder:text-foreground/45"
       />
+      {showAccountNameReset ? (
+        <button
+          type="button"
+          onClick={() => onNameChange(accountName)}
+          className="mt-2 text-sm font-medium text-primary hover:underline"
+        >
+          Use account name ({accountName})
+        </button>
+      ) : null}
       {error ? <p className="mt-3 text-base text-destructive">{error}</p> : null}
       <button
         type="submit"
@@ -734,8 +763,14 @@ function SharingControls({
         onClick={onLeave}
         className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-border px-5 py-3 text-base font-medium text-foreground/80 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-11 sm:w-auto sm:py-2.5 sm:text-sm"
       >
-        {isLeaving ? <Loader2 className="h-5 w-5 animate-spin sm:h-4 sm:w-4" /> : null}
-        Leave ride
+        {isLeaving ? (
+          <>
+            <Loader2 className="h-5 w-5 animate-spin sm:h-4 sm:w-4" />
+            Leaving ride…
+          </>
+        ) : (
+          "Leave ride"
+        )}
       </button>
       {shareError ? <p className="w-full text-base text-destructive sm:text-sm">{shareError}</p> : null}
       {locationError ? <p className="w-full text-base text-destructive sm:text-sm">{locationError}</p> : null}
