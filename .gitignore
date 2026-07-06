@@ -13,6 +13,7 @@ dist-ssr
 .output
 .vercel
 .vinxi
+.lovable
 .tanstack/**
 .nitro
 *.local

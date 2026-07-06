@@ -7,10 +7,9 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
-import { reportLovableError } from "../lib/lovable-error-reporting";
 
 function NotFoundComponent() {
   return (
@@ -37,9 +36,6 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
-  useEffect(() => {
-    reportLovableError(error, { boundary: "tanstack_root_error_component" });
-  }, [error]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -89,15 +85,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: "Southam Sloggers — Sunday Cycling Club, Warwickshire" },
       { name: "twitter:description", content: "Southam Sloggers is a friendly Sunday cycling group based in Southam, Warwickshire. Rolling roads, good pace, and a proper coffee-and-cake stop. Come and ride with us." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/3ae59561-3910-4971-a1ca-6f2bde35d8f7/id-preview-ded1fe53--14cc1350-ec0c-4ad7-9d39-6678c4c31652.lovable.app-1783327944630.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/3ae59561-3910-4971-a1ca-6f2bde35d8f7/id-preview-ded1fe53--14cc1350-ec0c-4ad7-9d39-6678c4c31652.lovable.app-1783327944630.png" },
+      { property: "og:image", content: "/gallery/sloggers-france-tour.png" },
+      { name: "twitter:image", content: "/gallery/sloggers-france-tour.png" },
     ],
     links: [
       {
         rel: "stylesheet",
         href: appCss,
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "icon", href: "/icons/pwa-icon.svg", type: "image/svg+xml" },
       { rel: "manifest", href: "/manifest.webmanifest" },
       { rel: "apple-touch-icon", href: "/icons/pwa-icon.svg" },
     ],
