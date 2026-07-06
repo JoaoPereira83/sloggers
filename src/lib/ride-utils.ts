@@ -1,3 +1,5 @@
+import type { RideReportType } from "./ride-types";
+
 export function haversineKm(
   lat1: number,
   lon1: number,
@@ -79,4 +81,31 @@ export function formatSpeed(
   }
   if (speedKmh < STOPPED_SPEED_KMH) return "Stopped";
   return `${Math.round(speedKmh)} km/h`;
+}
+
+export function normalizeRideName(name: string) {
+  return name.trim().replace(/\s+/g, " ");
+}
+
+export function duplicateRideNameMessage(name: string) {
+  return `"${name}" is already on this ride. Choose a unique name — try adding an initial, like ${name} B.`;
+}
+
+export const RIDE_REPORT_OPTIONS: Array<{
+  type: RideReportType;
+  label: string;
+  description: string;
+}> = [
+  { type: "accident", label: "Accident / fall", description: "Someone is hurt or has come off the bike." },
+  { type: "mechanical", label: "Mechanical", description: "Puncture, chain, brakes, or another bike issue." },
+  { type: "lost", label: "Lost / separated", description: "Rider is separated from the group or unsure of the route." },
+  { type: "other", label: "Other", description: "Anything else the group should know about." },
+];
+
+export function formatReportType(type: RideReportType) {
+  return RIDE_REPORT_OPTIONS.find((option) => option.type === type)?.label ?? type;
+}
+
+export function formatReportTime(createdAt: string) {
+  return formatLastSeen(createdAt).replace("No location yet", "Just now");
 }

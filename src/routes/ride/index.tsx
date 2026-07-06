@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, MapPin, Navigation, Radio, Users } from "lucide-react";
+import { Loader2, MapPin, Navigation, Radio, TriangleAlert, Users } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { RideMap } from "@/components/RideMap";
@@ -12,10 +12,19 @@ import {
   leaveRide,
   setRideSharing,
   startRide,
+  submitRideReport,
   updateRideLocation,
 } from "@/lib/ride.server";
-import { formatDistance, formatLastSeen, formatSpeed, haversineKm } from "@/lib/ride-utils";
-import type { RideRider } from "@/lib/ride-types";
+import {
+  formatDistance,
+  formatLastSeen,
+  formatReportTime,
+  formatReportType,
+  formatSpeed,
+  haversineKm,
+  RIDE_REPORT_OPTIONS,
+} from "@/lib/ride-utils";
+import type { RideReport, RideReportType, RideRider } from "@/lib/ride-types";
 
 export const Route = createFileRoute("/ride/")({
   head: () => ({
@@ -49,6 +58,9 @@ function RidePage() {
   const [locationError, setLocationError] = useState<string | null>(null);
   const [adminPassword, setAdminPassword] = useState("");
   const [showAdmin, setShowAdmin] = useState(false);
+  const [showReportForm, setShowReportForm] = useState(false);
+  const [reportType, setReportType] = useState<RideReportType>("mechanical");
+  const [reportMessage, setReportMessage] = useState("");
 
   const rideQuery = useQuery({
     queryKey: ["ride-snapshot"],
@@ -101,6 +113,20 @@ function RidePage() {
     mutationFn: () => endRide({ data: { password: adminPassword } }),
     onSuccess: () => {
       setSelectedRiderId(null);
+      invalidate();
+    },
+  });
+
+  const reportMutation = useMutation({
+    mutationFn: (input: {
+      type: RideReportType;
+      message?: string;
+      latitude?: number;
+      longitude?: number;
+    }) => submitRideReport({ data: input }),
+    onSuccess: () => {
+      setShowReportForm(false);
+      setReportMessage("");
       invalidate();
     },
   });
@@ -205,6 +231,32 @@ function RidePage() {
                 isUpdating={sharingMutation.isPending || leaveMutation.isPending}
               />
 
+              <ReportPanel
+                showForm={showReportForm}
+                onToggleForm={() => setShowReportForm((value) => !value)}
+                reportType={reportType}
+                onReportTypeChange={setReportType}
+                reportMessage={reportMessage}
+                onReportMessageChange={setReportMessage}
+                onSubmit={() =>
+                  reportMutation.mutate({
+                    type: reportType,
+                    message: reportMessage.trim() || undefined,
+                    latitude: currentRider?.latitude ?? undefined,
+                    longitude: currentRider?.longitude ?? undefined,
+                  })
+                }
+                isSubmitting={reportMutation.isPending}
+                error={reportMutation.error instanceof Error ? reportMutation.error.message : null}
+              />
+
+              {snapshot?.reports.length ? (
+                <ReportsFeed
+                  reports={snapshot.reports}
+                  onSelectRider={setSelectedRiderId}
+                />
+              ) : null}
+
               <RideMap
                 riders={snapshot?.riders ?? []}
                 selectedRiderId={selectedRiderId}
@@ -292,7 +344,8 @@ function JoinCard({
     >
       <h2 className="display text-3xl">Join this Sunday&apos;s ride</h2>
       <p className="mt-2 text-sm text-muted-foreground">
-        Your location will only be visible to other riders who joined this ride.
+        Your location will only be visible to other riders who joined this ride. Names must be
+        unique — if someone is already using yours, add an initial or nickname.
       </p>
       <label className="mt-6 block text-xs uppercase tracking-widest text-muted-foreground">
         Your name
@@ -504,6 +557,142 @@ function RiderDetail({
           <p className="text-muted-foreground">No location received yet.</p>
         )}
       </dl>
+    </section>
+  );
+}
+
+function ReportPanel({
+  showForm,
+  onToggleForm,
+  reportType,
+  onReportTypeChange,
+  reportMessage,
+  onReportMessageChange,
+  onSubmit,
+  isSubmitting,
+  error,
+}: {
+  showForm: boolean;
+  onToggleForm: () => void;
+  reportType: RideReportType;
+  onReportTypeChange: (value: RideReportType) => void;
+  reportMessage: string;
+  onReportMessageChange: (value: string) => void;
+  onSubmit: () => void;
+  isSubmitting: boolean;
+  error: string | null;
+}) {
+  return (
+    <div className="rounded-3xl border border-border bg-card px-5 py-4 shadow-soft">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold uppercase tracking-widest text-primary">
+            Need help?
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Report an accident, mechanical, or if someone is lost — the group will see it here.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onToggleForm}
+          className="inline-flex items-center gap-2 rounded-full border border-destructive/30 bg-destructive/5 px-5 py-2 text-sm font-semibold uppercase tracking-wider text-destructive"
+        >
+          <TriangleAlert className="h-4 w-4" />
+          {showForm ? "Cancel report" : "Report an issue"}
+        </button>
+      </div>
+
+      {showForm ? (
+        <form
+          className="mt-5 space-y-4 border-t border-border pt-5"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onSubmit();
+          }}
+        >
+          <div className="grid gap-3 sm:grid-cols-2">
+            {RIDE_REPORT_OPTIONS.map((option) => (
+              <label
+                key={option.type}
+                className={`cursor-pointer rounded-2xl border px-4 py-3 transition ${
+                  reportType === option.type
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:bg-muted/40"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="report-type"
+                  value={option.type}
+                  checked={reportType === option.type}
+                  onChange={() => onReportTypeChange(option.type)}
+                  className="sr-only"
+                />
+                <div className="font-medium">{option.label}</div>
+                <div className="mt-1 text-xs text-muted-foreground">{option.description}</div>
+              </label>
+            ))}
+          </div>
+          <label className="block text-xs uppercase tracking-widest text-muted-foreground">
+            Extra details (optional)
+          </label>
+          <textarea
+            value={reportMessage}
+            onChange={(event) => onReportMessageChange(event.target.value)}
+            placeholder="e.g. Puncture on B445, or waiting at the crossroads"
+            rows={3}
+            className="w-full rounded-xl border border-input bg-background px-4 py-3"
+          />
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="inline-flex items-center gap-2 rounded-full bg-destructive px-6 py-3 text-sm font-semibold uppercase tracking-wider text-destructive-foreground"
+          >
+            {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <TriangleAlert className="h-4 w-4" />}
+            Send report to group
+          </button>
+        </form>
+      ) : null}
+    </div>
+  );
+}
+
+function ReportsFeed({
+  reports,
+  onSelectRider,
+}: {
+  reports: RideReport[];
+  onSelectRider: (riderId: string) => void;
+}) {
+  return (
+    <section className="rounded-3xl border border-destructive/20 bg-destructive/5 p-6 shadow-soft">
+      <h2 className="display text-3xl">Ride reports</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Alerts from riders on today&apos;s ride. Tap one to locate them on the map.
+      </p>
+      <div className="mt-4 space-y-3">
+        {reports.map((report) => (
+          <button
+            key={report.id}
+            type="button"
+            onClick={() => onSelectRider(report.riderId)}
+            className="flex w-full items-start justify-between gap-4 rounded-2xl border border-destructive/20 bg-background px-4 py-3 text-left transition hover:bg-muted/40"
+          >
+            <div>
+              <div className="font-medium">
+                {report.riderName} · {formatReportType(report.type)}
+              </div>
+              {report.message ? (
+                <p className="mt-1 text-sm text-muted-foreground">{report.message}</p>
+              ) : null}
+              <p className="mt-2 text-xs text-muted-foreground">{formatReportTime(report.createdAt)}</p>
+            </div>
+            <TriangleAlert className="mt-1 h-4 w-4 shrink-0 text-destructive" />
+          </button>
+        ))}
+      </div>
     </section>
   );
 }

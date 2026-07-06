@@ -2,7 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 
 import type { RideSession } from "./ride-session";
 import { rideSessionConfig } from "./ride-session";
-import type { RideSnapshot } from "./ride-types";
+import type { RideReportType, RideSnapshot } from "./ride-types";
+import { normalizeRideName } from "./ride-utils";
 
 function getRideAdminPassword() {
   return process.env.RIDE_ADMIN_PASSWORD ?? process.env.ADMIN_PASSWORD ?? "sloggers";
@@ -32,6 +33,7 @@ export const getRideSnapshot = createServerFn({ method: "GET" }).handler(async (
   return {
     ride: store.ride,
     riders: store.riders,
+    reports: store.reports ?? [],
     currentRiderId,
   };
 });
@@ -40,10 +42,11 @@ export const joinRide = createServerFn({ method: "POST" })
   .validator((data: { name: string }) => data)
   .handler(async ({ data }) => {
     const { joinRideStore } = await import("./ride-store");
-    const name = data.name.trim();
+    const name = normalizeRideName(data.name);
     if (!name) throw new Error("Please enter your name.");
 
-    const rider = await joinRideStore(name);
+    const currentRiderId = await getCurrentRiderId();
+    const rider = await joinRideStore(name, currentRiderId);
     await setCurrentRiderId(rider.id);
     return { riderId: rider.id, name: rider.name };
   });
@@ -105,4 +108,27 @@ export const endRide = createServerFn({ method: "POST" })
     await endRideStore();
     await setCurrentRiderId(undefined);
     return { ok: true as const };
+  });
+
+export const submitRideReport = createServerFn({ method: "POST" })
+  .validator(
+    (data: {
+      type: RideReportType;
+      message?: string;
+      latitude?: number;
+      longitude?: number;
+    }) => data,
+  )
+  .handler(async ({ data }) => {
+    const { submitRideReportStore } = await import("./ride-store");
+    const riderId = await getCurrentRiderId();
+    if (!riderId) throw new Error("Join the ride before sending a report.");
+
+    return submitRideReportStore({
+      riderId,
+      type: data.type,
+      message: data.message,
+      latitude: data.latitude,
+      longitude: data.longitude,
+    });
   });

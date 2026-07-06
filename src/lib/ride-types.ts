@@ -8,6 +8,20 @@ export type ActiveRide = {
   meetingLabel: string;
 };
 
+export type RideReportType = "accident" | "mechanical" | "lost" | "other";
+
+export type RideReport = {
+  id: string;
+  rideId: string;
+  riderId: string;
+  riderName: string;
+  type: RideReportType;
+  message: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  createdAt: string;
+};
+
 export type RideRider = {
   id: string;
   name: string;
@@ -22,10 +36,12 @@ export type RideRider = {
 export type RideStore = {
   ride: ActiveRide | null;
   riders: RideRider[];
+  reports: RideReport[];
 };
 
 export type RideSnapshot = {
   ride: ActiveRide | null;
   riders: RideRider[];
+  reports: RideReport[];
   currentRiderId: string | null;
 };

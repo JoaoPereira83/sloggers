@@ -1,4 +1,5 @@
-import type { ActiveRide, RideRider, RideStore } from "./ride-types";
+import type { ActiveRide, RideReport, RideReportType, RideRider, RideStore } from "./ride-types";
+import { assertUniqueRideName, findRideRiderByName } from "./ride-names";
 import { computeSpeedKmh } from "./ride-utils";
 
 const missingSupabaseMessage =
@@ -60,6 +61,7 @@ export async function startRideStore(input: {
     meetingLabel: input.meetingLabel,
   };
   store.riders = [];
+  store.reports = [];
   await writeStore(store);
   return store.ride;
 }
@@ -75,13 +77,17 @@ export async function endRideStore() {
   const store = await readRideStore();
   store.ride = null;
   store.riders = [];
+  store.reports = [];
   await writeStore(store);
 }
 
-export async function joinRideStore(name: string): Promise<RideRider> {
+export async function joinRideStore(
+  name: string,
+  currentRiderId?: string | null,
+): Promise<RideRider> {
   const { isSupabaseConfigured, joinRideInSupabase } = await useSupabaseStore();
   if (isSupabaseConfigured()) {
-    return joinRideInSupabase(name);
+    return joinRideInSupabase(name, currentRiderId);
   }
 
   const { randomUUID } = await import("node:crypto");
@@ -91,10 +97,10 @@ export async function joinRideStore(name: string): Promise<RideRider> {
     throw new Error("There is no active ride to join right now.");
   }
 
-  const existing = store.riders.find(
-    (rider) => rider.name.toLowerCase() === name.toLowerCase(),
-  );
-  if (existing) {
+  assertUniqueRideName(store.riders, name, currentRiderId);
+
+  const existing = findRideRiderByName(store.riders, name);
+  if (existing && existing.id === currentRiderId) {
     existing.isSharing = true;
     await writeStore(store);
     return existing;
@@ -186,4 +192,43 @@ export async function setRideSharingStore(riderId: string, isSharing: boolean) {
 
   rider.isSharing = isSharing;
   await writeStore(store);
+}
+
+export async function submitRideReportStore(input: {
+  riderId: string;
+  type: RideReportType;
+  message?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+}): Promise<RideReport> {
+  const { isSupabaseConfigured, submitRideReportInSupabase } = await useSupabaseStore();
+  if (isSupabaseConfigured()) {
+    return submitRideReportInSupabase(input);
+  }
+
+  const { randomUUID } = await import("node:crypto");
+  const store = await readStore();
+
+  if (!store.ride || store.ride.status !== "active") {
+    throw new Error("There is no active ride to report on right now.");
+  }
+
+  const rider = store.riders.find((entry) => entry.id === input.riderId);
+  if (!rider) throw new Error("Join the ride before sending a report.");
+
+  const report: RideReport = {
+    id: randomUUID(),
+    rideId: store.ride.id,
+    riderId: rider.id,
+    riderName: rider.name,
+    type: input.type,
+    message: input.message?.trim() || null,
+    latitude: input.latitude ?? rider.latitude,
+    longitude: input.longitude ?? rider.longitude,
+    createdAt: new Date().toISOString(),
+  };
+
+  store.reports = [report, ...(store.reports ?? [])];
+  await writeStore(store);
+  return report;
 }

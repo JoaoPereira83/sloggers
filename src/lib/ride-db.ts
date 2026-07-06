@@ -1,7 +1,8 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-import { computeSpeedKmh } from "./ride-utils";
-import type { ActiveRide, RideRider, RideStore } from "./ride-types";
+import { assertUniqueRideName, findRideRiderByName } from "./ride-names";
+import { computeSpeedKmh, duplicateRideNameMessage } from "./ride-utils";
+import type { ActiveRide, RideReport, RideReportType, RideRider, RideStore } from "./ride-types";
 
 type RideRow = {
   id: string;
@@ -22,6 +23,32 @@ type RiderRow = {
   speed_kmh: number | null;
   is_sharing: boolean;
 };
+
+type ReportRow = {
+  id: string;
+  ride_id: string;
+  rider_id: string;
+  rider_name: string;
+  report_type: RideReportType;
+  message: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  created_at: string;
+};
+
+function mapReport(row: ReportRow): RideReport {
+  return {
+    id: row.id,
+    rideId: row.ride_id,
+    riderId: row.rider_id,
+    riderName: row.rider_name,
+    type: row.report_type,
+    message: row.message,
+    latitude: row.latitude,
+    longitude: row.longitude,
+    createdAt: row.created_at,
+  };
+}
 
 function mapRide(row: RideRow): ActiveRide {
   return {
@@ -136,7 +163,7 @@ export async function readRideStoreFromSupabase(): Promise<RideStore> {
 
   const activeRide = rideRows?.[0] as RideRow | undefined;
   if (!activeRide) {
-    return { ride: null, riders: [] };
+    return { ride: null, riders: [], reports: [] };
   }
 
   const { data: riderRows, error: riderError } = await supabase
@@ -147,9 +174,18 @@ export async function readRideStoreFromSupabase(): Promise<RideStore> {
 
   if (riderError) throw new Error(toSupabaseErrorMessage(riderError.message));
 
+  const { data: reportRows, error: reportError } = await supabase
+    .from("ride_reports")
+    .select("*")
+    .eq("ride_id", activeRide.id)
+    .order("created_at", { ascending: false });
+
+  if (reportError) throw new Error(toSupabaseErrorMessage(reportError.message));
+
   return {
     ride: mapRide(activeRide),
     riders: ((riderRows ?? []) as RiderRow[]).map(mapRider),
+    reports: ((reportRows ?? []) as ReportRow[]).map(mapReport),
   };
 }
 
@@ -184,7 +220,10 @@ export async function endRideInSupabase() {
   if (error) throw new Error(toSupabaseErrorMessage(error.message));
 }
 
-export async function joinRideInSupabase(name: string): Promise<RideRider> {
+export async function joinRideInSupabase(
+  name: string,
+  currentRiderId?: string | null,
+): Promise<RideRider> {
   const supabase = getSupabaseAdmin();
   const store = await readRideStoreFromSupabase();
 
@@ -192,11 +231,10 @@ export async function joinRideInSupabase(name: string): Promise<RideRider> {
     throw new Error("There is no active ride to join right now.");
   }
 
-  const existing = store.riders.find(
-    (rider) => rider.name.toLowerCase() === name.toLowerCase(),
-  );
+  assertUniqueRideName(store.riders, name, currentRiderId);
 
-  if (existing) {
+  const existing = findRideRiderByName(store.riders, name);
+  if (existing && existing.id === currentRiderId) {
     const { data, error } = await supabase
       .from("ride_riders")
       .update({ is_sharing: true })
@@ -221,7 +259,11 @@ export async function joinRideInSupabase(name: string): Promise<RideRider> {
     .single();
 
   if (error || !data) {
-    throw new Error(toSupabaseErrorMessage(error?.message ?? "Could not join ride."));
+    const message = error?.message ?? "Could not join ride.";
+    if (message.includes("ride_riders_ride_id_name_lower_idx") || message.includes("duplicate key")) {
+      throw new Error(duplicateRideNameMessage(name));
+    }
+    throw new Error(toSupabaseErrorMessage(message));
   }
 
   return mapRider(data as RiderRow);
@@ -284,4 +326,46 @@ export async function setRideSharingInSupabase(riderId: string, isSharing: boole
   const supabase = getSupabaseAdmin();
   const { error } = await supabase.from("ride_riders").update({ is_sharing: isSharing }).eq("id", riderId);
   if (error) throw new Error(toSupabaseErrorMessage(error.message));
+}
+
+export async function submitRideReportInSupabase(input: {
+  riderId: string;
+  type: RideReportType;
+  message?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+}): Promise<RideReport> {
+  const supabase = getSupabaseAdmin();
+  const store = await readRideStoreFromSupabase();
+
+  if (!store.ride || store.ride.status !== "active") {
+    throw new Error("There is no active ride to report on right now.");
+  }
+
+  const rider = store.riders.find((entry) => entry.id === input.riderId);
+  if (!rider) throw new Error("Join the ride before sending a report.");
+
+  const message = input.message?.trim() || null;
+  const latitude = input.latitude ?? rider.latitude;
+  const longitude = input.longitude ?? rider.longitude;
+
+  const { data, error } = await supabase
+    .from("ride_reports")
+    .insert({
+      ride_id: store.ride.id,
+      rider_id: rider.id,
+      rider_name: rider.name,
+      report_type: input.type,
+      message,
+      latitude,
+      longitude,
+    })
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    throw new Error(toSupabaseErrorMessage(error?.message ?? "Could not send report."));
+  }
+
+  return mapReport(data as ReportRow);
 }
