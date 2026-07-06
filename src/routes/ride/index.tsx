@@ -442,7 +442,8 @@ function RidePage() {
                   }
                   onToggleSharing={(next) => sharingMutation.mutate(next)}
                   onLeave={() => leaveMutation.mutate()}
-                  isUpdating={sharingMutation.isPending || leaveMutation.isPending}
+                  isSharingUpdating={sharingMutation.isPending}
+                  isLeaving={leaveMutation.isPending}
                 />
               </div>
 
@@ -688,7 +689,8 @@ function SharingControls({
   shareError,
   onToggleSharing,
   onLeave,
-  isUpdating,
+  isSharingUpdating,
+  isLeaving,
 }: {
   riderName: string | null;
   isSharing: boolean;
@@ -696,8 +698,11 @@ function SharingControls({
   shareError: string | null;
   onToggleSharing: (value: boolean) => void;
   onLeave: () => void;
-  isUpdating: boolean;
+  isSharingUpdating: boolean;
+  isLeaving: boolean;
 }) {
+  const isBusy = isSharingUpdating || isLeaving;
+
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 shadow-soft sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 sm:rounded-3xl sm:px-5 sm:py-4">
       {riderName ? (
@@ -708,7 +713,7 @@ function SharingControls({
       ) : null}
       <button
         type="button"
-        disabled={isUpdating}
+        disabled={isBusy}
         onClick={() => onToggleSharing(!isSharing)}
         className={`inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-base font-semibold uppercase tracking-wider disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-11 sm:w-auto sm:py-2.5 sm:text-sm ${
           isSharing
@@ -716,15 +721,20 @@ function SharingControls({
             : "bg-primary text-primary-foreground shadow-purple"
         }`}
       >
-        <Navigation className="h-5 w-5 sm:h-4 sm:w-4" />
+        {isSharingUpdating ? (
+          <Loader2 className="h-5 w-5 animate-spin sm:h-4 sm:w-4" />
+        ) : (
+          <Navigation className="h-5 w-5 sm:h-4 sm:w-4" />
+        )}
         {isSharing ? "Sharing location" : "Share my location"}
       </button>
       <button
         type="button"
-        disabled={isUpdating}
+        disabled={isBusy}
         onClick={onLeave}
-        className="min-h-12 w-full rounded-full border border-border px-5 py-3 text-base font-medium text-foreground/80 sm:min-h-11 sm:w-auto sm:py-2.5 sm:text-sm"
+        className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-border px-5 py-3 text-base font-medium text-foreground/80 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-11 sm:w-auto sm:py-2.5 sm:text-sm"
       >
+        {isLeaving ? <Loader2 className="h-5 w-5 animate-spin sm:h-4 sm:w-4" /> : null}
         Leave ride
       </button>
       {shareError ? <p className="w-full text-base text-destructive sm:text-sm">{shareError}</p> : null}
