@@ -1,8 +1,10 @@
 import { Link } from "@tanstack/react-router";
+import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import heroImg from "@/assets/sloggers-france-tour.png";
 import coffeeImg from "@/assets/coffee-cake.jpg";
 import bikeImg from "@/assets/bike-detail.jpg";
+import { submitJoinRequest } from "@/lib/join.server";
 
 export function HeroSection() {
   return (
@@ -282,12 +284,24 @@ export function CafeSection() {
 }
 
 export function JoinSection() {
-  const [status, setStatus] = useState<"idle" | "sent">("idle");
+  const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [errorMessage, setErrorMessage] = useState("");
   const [form, setForm] = useState({ name: "", email: "", experience: "", message: "" });
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setStatus("sent");
+    setStatus("sending");
+    setErrorMessage("");
+
+    try {
+      await submitJoinRequest({ data: form });
+      setStatus("sent");
+    } catch (error) {
+      setStatus("error");
+      setErrorMessage(
+        error instanceof Error ? error.message : "Something went wrong. Please try again.",
+      );
+    }
   };
 
   return (
@@ -367,11 +381,24 @@ export function JoinSection() {
               />
             </div>
             <div className="md:col-span-2">
+              {errorMessage ? (
+                <p className="mb-4 rounded-xl border border-red-300/40 bg-red-500/10 px-4 py-3 text-sm text-primary-foreground">
+                  {errorMessage}
+                </p>
+              ) : null}
               <button
                 type="submit"
-                className="w-full md:w-auto rounded-full bg-primary-glow px-10 py-4 text-sm font-bold uppercase tracking-wider text-primary-deep hover:opacity-90 transition shadow-purple"
+                disabled={status === "sending"}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary-glow px-10 py-4 text-sm font-bold uppercase tracking-wider text-primary-deep transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70 md:w-auto shadow-purple"
               >
-                Send my request
+                {status === "sending" ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Sending…
+                  </>
+                ) : (
+                  "Send my request"
+                )}
               </button>
             </div>
           </form>
