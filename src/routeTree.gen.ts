@@ -17,6 +17,7 @@ import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RideIndexRouteImport } from './routes/ride/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
+import { Route as RideActivateRouteImport } from './routes/ride/activate'
 
 const TheRideRoute = TheRideRouteImport.update({
   id: '/the-ride',
@@ -58,6 +59,11 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   path: '/admin/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RideActivateRoute = RideActivateRouteImport.update({
+  id: '/ride/activate',
+  path: '/ride/activate',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -66,6 +72,7 @@ export interface FileRoutesByFullPath {
   '/gallery': typeof GalleryRoute
   '/join': typeof JoinRoute
   '/the-ride': typeof TheRideRoute
+  '/ride/activate': typeof RideActivateRoute
   '/admin/': typeof AdminIndexRoute
   '/ride/': typeof RideIndexRoute
 }
@@ -76,6 +83,7 @@ export interface FileRoutesByTo {
   '/gallery': typeof GalleryRoute
   '/join': typeof JoinRoute
   '/the-ride': typeof TheRideRoute
+  '/ride/activate': typeof RideActivateRoute
   '/admin': typeof AdminIndexRoute
   '/ride': typeof RideIndexRoute
 }
@@ -87,6 +95,7 @@ export interface FileRoutesById {
   '/gallery': typeof GalleryRoute
   '/join': typeof JoinRoute
   '/the-ride': typeof TheRideRoute
+  '/ride/activate': typeof RideActivateRoute
   '/admin/': typeof AdminIndexRoute
   '/ride/': typeof RideIndexRoute
 }
@@ -99,6 +108,7 @@ export interface FileRouteTypes {
     | '/gallery'
     | '/join'
     | '/the-ride'
+    | '/ride/activate'
     | '/admin/'
     | '/ride/'
   fileRoutesByTo: FileRoutesByTo
@@ -109,6 +119,7 @@ export interface FileRouteTypes {
     | '/gallery'
     | '/join'
     | '/the-ride'
+    | '/ride/activate'
     | '/admin'
     | '/ride'
   id:
@@ -119,6 +130,7 @@ export interface FileRouteTypes {
     | '/gallery'
     | '/join'
     | '/the-ride'
+    | '/ride/activate'
     | '/admin/'
     | '/ride/'
   fileRoutesById: FileRoutesById
@@ -130,6 +142,7 @@ export interface RootRouteChildren {
   GalleryRoute: typeof GalleryRoute
   JoinRoute: typeof JoinRoute
   TheRideRoute: typeof TheRideRoute
+  RideActivateRoute: typeof RideActivateRoute
   AdminIndexRoute: typeof AdminIndexRoute
   RideIndexRoute: typeof RideIndexRoute
 }
@@ -192,6 +205,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/ride/activate': {
+      id: '/ride/activate'
+      path: '/ride/activate'
+      fullPath: '/ride/activate'
+      preLoaderRoute: typeof RideActivateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -202,6 +222,7 @@ const rootRouteChildren: RootRouteChildren = {
   GalleryRoute: GalleryRoute,
   JoinRoute: JoinRoute,
   TheRideRoute: TheRideRoute,
+  RideActivateRoute: RideActivateRoute,
   AdminIndexRoute: AdminIndexRoute,
   RideIndexRoute: RideIndexRoute,
 }

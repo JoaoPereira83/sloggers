@@ -1,20 +1,19 @@
 import { JOIN_FORM_EMAIL } from "@/config/site";
 
-export function buildMemberApprovalMessage(input: {
-  email: string;
+export function buildMemberActivationMessage(input: {
   displayName: string;
-  siteUrl: string;
+  activationUrl: string;
 }) {
-  const rideMapUrl = `${input.siteUrl.replace(/\/+$/, "")}/ride`;
-
   return [
     `Hi ${input.displayName},`,
     "",
-    "Your Southam Sloggers account has been approved. You can now sign in and use the live ride map:",
+    "An admin has approved your Southam Sloggers account. To finish activating it and confirm your email address, click the link below:",
     "",
-    rideMapUrl,
+    input.activationUrl,
     "",
-    `This message confirms we have the correct email address for your account (${input.email}).`,
+    "This link expires in 7 days. Once activated, you can sign in and use the live ride map.",
+    "",
+    "If you did not request this account, you can ignore this email.",
     "",
     "See you on the road,",
     "Southam Sloggers",
@@ -48,25 +47,27 @@ async function postToFormSubmit(
 
   const ok = result.success === true || result.success === "true";
   if (!ok) {
-    throw new Error(result.message || "Could not send the approval email.");
+    throw new Error(result.message || "Could not send the activation email.");
   }
 }
 
 /** Send from the admin browser — FormSubmit blocks most server-side requests. */
-export async function sendMemberApprovalEmailFromBrowser(input: {
+export async function sendMemberActivationEmailFromBrowser(input: {
   email: string;
   displayName: string;
+  activationUrl: string;
 }) {
   const clubEmail = JOIN_FORM_EMAIL?.trim();
   if (!clubEmail) {
     throw new Error("Club email is not configured for FormSubmit.");
   }
 
-  const siteUrl =
-    typeof window !== "undefined" ? window.location.origin : "https://sloggers.vercel.app";
-  const message = buildMemberApprovalMessage({ ...input, siteUrl });
+  const message = buildMemberActivationMessage({
+    displayName: input.displayName,
+    activationUrl: input.activationUrl,
+  });
   const basePayload = {
-    _subject: "Southam Sloggers — your ride map account is approved",
+    _subject: "Southam Sloggers — activate your ride map account",
     _captcha: "false",
     _template: "box",
     name: input.displayName,
@@ -86,7 +87,7 @@ export async function sendMemberApprovalEmailFromBrowser(input: {
     } catch {
       throw directError instanceof Error
         ? directError
-        : new Error("Could not send the approval email.");
+        : new Error("Could not send the activation email.");
     }
   }
 }

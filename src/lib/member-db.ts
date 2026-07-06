@@ -9,6 +9,8 @@ type MemberRow = {
   status: MemberStatus;
   created_at: string;
   approved_at: string | null;
+  activation_token: string | null;
+  activation_expires_at: string | null;
 };
 
 function mapMember(row: MemberRow): Member {
@@ -20,6 +22,8 @@ function mapMember(row: MemberRow): Member {
     status: row.status,
     createdAt: row.created_at,
     approvedAt: row.approved_at,
+    activationToken: row.activation_token,
+    activationExpiresAt: row.activation_expires_at,
   };
 }
 
@@ -53,6 +57,18 @@ export async function findMemberByEmailInSupabase(email: string): Promise<Member
 export async function findMemberByIdInSupabase(id: string): Promise<Member | null> {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase.from("members").select("*").eq("id", id).maybeSingle();
+
+  if (error) wrapSupabaseError(error);
+  return data ? mapMember(data as MemberRow) : null;
+}
+
+export async function findMemberByActivationTokenInSupabase(token: string): Promise<Member | null> {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("members")
+    .select("*")
+    .eq("activation_token", token)
+    .maybeSingle();
 
   if (error) wrapSupabaseError(error);
   return data ? mapMember(data as MemberRow) : null;
@@ -95,11 +111,58 @@ export async function updateMemberStatusInSupabase(
   status: MemberStatus,
 ): Promise<Member> {
   const supabase = getSupabaseAdmin();
+  const updates: Record<string, unknown> = {
+    status,
+    approved_at: status === "approved" ? new Date().toISOString() : null,
+  };
+
+  if (status === "rejected" || status === "pending") {
+    updates.activation_token = null;
+    updates.activation_expires_at = null;
+  }
+
+  const { data, error } = await supabase
+    .from("members")
+    .update(updates)
+    .eq("id", id)
+    .select("*")
+    .single();
+
+  if (error) wrapSupabaseError(error);
+  return mapMember(data as MemberRow);
+}
+
+export async function issueMemberActivationInSupabase(
+  id: string,
+  token: string,
+  expiresAt: string,
+): Promise<Member> {
+  const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from("members")
     .update({
-      status,
-      approved_at: status === "approved" ? new Date().toISOString() : null,
+      status: "awaiting_activation",
+      activation_token: token,
+      activation_expires_at: expiresAt,
+      approved_at: null,
+    })
+    .eq("id", id)
+    .select("*")
+    .single();
+
+  if (error) wrapSupabaseError(error);
+  return mapMember(data as MemberRow);
+}
+
+export async function completeMemberActivationInSupabase(id: string): Promise<Member> {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("members")
+    .update({
+      status: "approved",
+      approved_at: new Date().toISOString(),
+      activation_token: null,
+      activation_expires_at: null,
     })
     .eq("id", id)
     .select("*")

@@ -1,18 +1,10 @@
-import { buildMemberApprovalMessage } from "./member-approval-email";
+import { buildMemberActivationMessage } from "./member-approval-email";
+import { buildMemberActivationUrl } from "./member-site";
 
-function getSiteUrl() {
-  const configured = process.env.SITE_URL?.trim().replace(/\/+$/, "");
-  if (configured) return configured;
-
-  const vercelHost = process.env.VERCEL_URL?.trim();
-  if (vercelHost) return `https://${vercelHost}`;
-
-  return "https://sloggers.vercel.app";
-}
-
-export async function sendMemberApprovalEmailViaResend(input: {
+export async function sendMemberActivationEmailViaResend(input: {
   email: string;
   displayName: string;
+  activationToken: string;
 }) {
   const apiKey = process.env.RESEND_API_KEY?.trim();
   if (!apiKey) {
@@ -21,9 +13,10 @@ export async function sendMemberApprovalEmailViaResend(input: {
 
   const from =
     process.env.RESEND_FROM_EMAIL?.trim() || "Southam Sloggers <onboarding@resend.dev>";
-  const message = buildMemberApprovalMessage({
-    ...input,
-    siteUrl: getSiteUrl(),
+  const activationUrl = buildMemberActivationUrl(input.activationToken);
+  const message = buildMemberActivationMessage({
+    displayName: input.displayName,
+    activationUrl,
   });
 
   const response = await fetch("https://api.resend.com/emails", {
@@ -35,7 +28,7 @@ export async function sendMemberApprovalEmailViaResend(input: {
     body: JSON.stringify({
       from,
       to: [input.email],
-      subject: "Southam Sloggers — your ride map account is approved",
+      subject: "Southam Sloggers — activate your ride map account",
       text: message,
     }),
   });
@@ -45,11 +38,11 @@ export async function sendMemberApprovalEmailViaResend(input: {
   try {
     result = JSON.parse(body) as { message?: string };
   } catch {
-    throw new Error("Could not send the approval email via Resend.");
+    throw new Error("Could not send the activation email via Resend.");
   }
 
   if (!response.ok) {
-    throw new Error(result?.message || "Could not send the approval email via Resend.");
+    throw new Error(result?.message || "Could not send the activation email via Resend.");
   }
 
   return { sent: true as const };

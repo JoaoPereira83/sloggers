@@ -1,4 +1,4 @@
-export type MemberStatus = "pending" | "approved" | "rejected";
+export type MemberStatus = "pending" | "awaiting_activation" | "approved" | "rejected";
 
 export type Member = {
   id: string;
@@ -8,6 +8,8 @@ export type Member = {
   status: MemberStatus;
   createdAt: string;
   approvedAt: string | null;
+  activationToken: string | null;
+  activationExpiresAt: string | null;
 };
 
 export type PublicMember = {

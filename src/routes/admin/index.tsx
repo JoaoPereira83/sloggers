@@ -18,7 +18,7 @@ import {
   listMembersForAdmin,
   rejectMember,
 } from "@/lib/member.server";
-import { sendMemberApprovalEmailFromBrowser } from "@/lib/member-approval-email";
+import { sendMemberActivationEmailFromBrowser } from "@/lib/member-approval-email";
 import type { GalleryItem } from "@/lib/gallery-types";
 import type { PublicMember } from "@/lib/member-types";
 
@@ -415,7 +415,8 @@ function AdminGalleryEditor({
 
 function memberStatusLabel(status: PublicMember["status"]) {
   if (status === "pending") return "Pending";
-  if (status === "approved") return "Approved";
+  if (status === "awaiting_activation") return "Awaiting email";
+  if (status === "approved") return "Active";
   return "Rejected";
 }
 
@@ -439,21 +440,26 @@ function AdminMembersPanel({
       onChanged();
 
       if (result.emailSent) {
-        setEmailNotice(`Approved ${member.displayName}. Confirmation email sent to ${member.email}.`);
+        setEmailNotice(
+          `Approved ${member.displayName}. Activation email sent to ${member.email}.`,
+        );
         return;
       }
 
       try {
-        await sendMemberApprovalEmailFromBrowser({
+        await sendMemberActivationEmailFromBrowser({
           email: member.email,
           displayName: member.displayName,
+          activationUrl: result.activationUrl,
         });
-        setEmailNotice(`Approved ${member.displayName}. Confirmation email sent to ${member.email}.`);
+        setEmailNotice(
+          `Approved ${member.displayName}. Activation email sent to ${member.email}.`,
+        );
       } catch (error) {
         const message =
-          error instanceof Error ? error.message : "Could not send the approval email.";
+          error instanceof Error ? error.message : "Could not send the activation email.";
         setEmailNotice(
-          `Approved ${member.displayName}, but the confirmation email could not be sent (${message}).`,
+          `Approved ${member.displayName}, but the activation email could not be sent (${message}).`,
         );
       }
     },
@@ -480,7 +486,8 @@ function AdminMembersPanel({
       <section className="rounded-3xl border border-border bg-card p-8 shadow-soft">
         <h2 className="display text-3xl">Pending approvals</h2>
         <p className="mt-2 text-muted-foreground">
-          Approve members before they can access the live ride map.
+          Approve members to send them an activation email. They must click the link before they can
+          use the live ride map.
         </p>
         {isLoading ? (
           <div className="mt-6 flex items-center gap-3 text-muted-foreground">
@@ -554,7 +561,9 @@ function AdminMembersPanel({
                     className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wider ${
                       member.status === "approved"
                         ? "bg-primary/10 text-primary"
-                        : "bg-destructive/10 text-destructive"
+                        : member.status === "awaiting_activation"
+                          ? "bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                          : "bg-destructive/10 text-destructive"
                     }`}
                   >
                     {memberStatusLabel(member.status)}

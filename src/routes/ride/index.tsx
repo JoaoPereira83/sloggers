@@ -389,6 +389,12 @@ function RidePage() {
             onSignOut={() => logoutMutation.mutate()}
             isSigningOut={logoutMutation.isPending}
           />
+        ) : member.status === "awaiting_activation" ? (
+          <AwaitingActivationPanel
+            email={member.email}
+            onSignOut={() => logoutMutation.mutate()}
+            isSigningOut={logoutMutation.isPending}
+          />
         ) : member.status === "rejected" ? (
           <RejectedAccessPanel
             onSignOut={() => logoutMutation.mutate()}
@@ -1414,7 +1420,41 @@ function PendingApprovalPanel({
       <h2 className="display text-3xl">Waiting for approval</h2>
       <p className="mt-3 text-muted-foreground">
         Thanks, {displayName}. Your account has been created and is waiting for an admin to approve
-        it. You&apos;ll be able to use the live ride map once approved.
+        it. Once approved, you&apos;ll receive an email with a link to activate your account.
+      </p>
+      <button
+        type="button"
+        onClick={onSignOut}
+        disabled={isSigningOut}
+        className="mt-6 inline-flex items-center gap-2 rounded-full border border-border px-5 py-2 text-sm font-medium hover:bg-muted"
+      >
+        {isSigningOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+        Sign out
+      </button>
+    </div>
+  );
+}
+
+function AwaitingActivationPanel({
+  email,
+  onSignOut,
+  isSigningOut,
+}: {
+  email: string;
+  onSignOut: () => void;
+  isSigningOut: boolean;
+}) {
+  return (
+    <div className="mt-8 max-w-lg rounded-3xl border border-primary/25 bg-card p-8 shadow-soft">
+      <h2 className="display text-3xl">Check your email</h2>
+      <p className="mt-3 text-muted-foreground">
+        An admin has approved your account. We sent an activation link to{" "}
+        <span className="font-medium text-foreground">{email}</span>. Click the link in that email to
+        finish activating your account and access the live ride map.
+      </p>
+      <p className="mt-3 text-sm text-muted-foreground">
+        The link expires in 7 days. Check your spam folder if you don&apos;t see it within a few
+        minutes.
       </p>
       <button
         type="button"

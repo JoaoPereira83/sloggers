@@ -76,6 +76,10 @@ export async function requireApprovedMember() {
     throw new Error("Your account is waiting for admin approval.");
   }
 
+  if (member.status === "awaiting_activation") {
+    throw new Error("Please click the activation link in your approval email to finish setting up your account.");
+  }
+
   if (member.status === "rejected") {
     throw new Error("Your account was not approved for ride map access.");
   }
@@ -159,30 +163,51 @@ export const approveMember = createServerFn({ method: "POST" })
   .validator((data: { memberId: string }) => data)
   .handler(async ({ data }) => {
     await requireAdmin();
-    const { findMemberById, updateMemberStatus } = await import("./member-store");
+    const { findMemberById, issueMemberActivation } = await import("./member-store");
+    const { buildMemberActivationUrl } = await import("./member-site");
     const existing = await findMemberById(data.memberId);
     if (!existing) {
       throw new Error("Member not found.");
     }
 
-    const member = await updateMemberStatus(data.memberId, "approved");
+    if (existing.status === "approved") {
+      throw new Error("This member is already active.");
+    }
+
+    const { member, token } = await issueMemberActivation(data.memberId);
     const publicMember = toPublicMember(member);
+    const activationUrl = buildMemberActivationUrl(token);
     let emailSent = false;
 
     if (existing.status !== "approved") {
       try {
-        const { sendMemberApprovalEmailViaResend } = await import("./member-email");
-        const result = await sendMemberApprovalEmailViaResend({
+        const { sendMemberActivationEmailViaResend } = await import("./member-email");
+        const result = await sendMemberActivationEmailViaResend({
           email: member.email,
           displayName: member.displayName,
+          activationToken: token,
         });
         emailSent = result.sent;
       } catch (error) {
-        console.error("Failed to send member approval email via Resend:", error);
+        console.error("Failed to send member activation email via Resend:", error);
       }
     }
 
-    return { member: publicMember, emailSent };
+    return { member: publicMember, emailSent, activationUrl };
+  });
+
+export const activateMemberAccount = createServerFn({ method: "POST" })
+  .validator((data: { token: string }) => data)
+  .handler(async ({ data }) => {
+    const token = data.token.trim();
+    if (!token) {
+      throw new Error("Activation link is invalid.");
+    }
+
+    const { activateMemberByToken } = await import("./member-store");
+    const member = await activateMemberByToken(token);
+    await setMemberId(member.id);
+    return { member: toPublicMember(member) };
   });
 
 export const rejectMember = createServerFn({ method: "POST" })
