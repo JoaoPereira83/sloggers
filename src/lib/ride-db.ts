@@ -43,10 +43,39 @@ function mapRider(row: RiderRow): RideRider {
   };
 }
 
+const supabaseUrlHint =
+  "SUPABASE_URL is wrong in Vercel. Use your Project URL from Supabase → Settings → General (looks like https://xxxxx.supabase.co), not the supabase.com dashboard link.";
+
 export function getSupabaseConfig() {
-  const url = process.env.SUPABASE_URL?.trim();
+  const url = process.env.SUPABASE_URL?.trim().replace(/\/+$/, "");
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   return { url, key };
+}
+
+function assertValidSupabaseUrl(url: string) {
+  if (
+    url.includes("supabase.com/dashboard") ||
+    url.includes("supabase.com/project") ||
+    url.startsWith("https://supabase.com")
+  ) {
+    throw new Error(supabaseUrlHint);
+  }
+
+  if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(url)) {
+    throw new Error(supabaseUrlHint);
+  }
+}
+
+export function toSupabaseErrorMessage(message: string) {
+  if (
+    message.includes("<!DOCTYPE") ||
+    message.includes("Supabase Studio") ||
+    message.includes("Looking for something")
+  ) {
+    return supabaseUrlHint;
+  }
+
+  return message;
 }
 
 export function isSupabaseConfigured() {
@@ -67,6 +96,8 @@ function getSupabaseAdmin(): SupabaseClient {
     );
   }
 
+  assertValidSupabaseUrl(url);
+
   return createClient(url, key, {
     auth: {
       persistSession: false,
@@ -85,7 +116,7 @@ export async function readRideStoreFromSupabase(): Promise<RideStore> {
     .order("started_at", { ascending: false })
     .limit(1);
 
-  if (rideError) throw new Error(rideError.message);
+  if (rideError) throw new Error(toSupabaseErrorMessage(rideError.message));
 
   const activeRide = rideRows?.[0] as RideRow | undefined;
   if (!activeRide) {
@@ -98,7 +129,7 @@ export async function readRideStoreFromSupabase(): Promise<RideStore> {
     .eq("ride_id", activeRide.id)
     .order("joined_at", { ascending: true });
 
-  if (riderError) throw new Error(riderError.message);
+  if (riderError) throw new Error(toSupabaseErrorMessage(riderError.message));
 
   return {
     ride: mapRide(activeRide),
@@ -124,7 +155,9 @@ export async function startRideInSupabase(input: {
     .select("*")
     .single();
 
-  if (error || !data) throw new Error(error?.message ?? "Could not start ride.");
+  if (error || !data) {
+    throw new Error(toSupabaseErrorMessage(error?.message ?? "Could not start ride."));
+  }
 
   return mapRide(data as RideRow);
 }
@@ -132,7 +165,7 @@ export async function startRideInSupabase(input: {
 export async function endRideInSupabase() {
   const supabase = getSupabaseAdmin();
   const { error } = await supabase.from("rides").update({ status: "ended" }).eq("status", "active");
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(toSupabaseErrorMessage(error.message));
 }
 
 export async function joinRideInSupabase(name: string): Promise<RideRider> {
@@ -155,7 +188,9 @@ export async function joinRideInSupabase(name: string): Promise<RideRider> {
       .select("*")
       .single();
 
-    if (error || !data) throw new Error(error?.message ?? "Could not rejoin ride.");
+    if (error || !data) {
+      throw new Error(toSupabaseErrorMessage(error?.message ?? "Could not rejoin ride."));
+    }
     return mapRider(data as RiderRow);
   }
 
@@ -169,7 +204,9 @@ export async function joinRideInSupabase(name: string): Promise<RideRider> {
     .select("*")
     .single();
 
-  if (error || !data) throw new Error(error?.message ?? "Could not join ride.");
+  if (error || !data) {
+    throw new Error(toSupabaseErrorMessage(error?.message ?? "Could not join ride."));
+  }
 
   return mapRider(data as RiderRow);
 }
@@ -177,7 +214,7 @@ export async function joinRideInSupabase(name: string): Promise<RideRider> {
 export async function leaveRideInSupabase(riderId: string) {
   const supabase = getSupabaseAdmin();
   const { error } = await supabase.from("ride_riders").delete().eq("id", riderId);
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(toSupabaseErrorMessage(error.message));
 }
 
 export async function updateRideLocationInSupabase(
@@ -202,11 +239,11 @@ export async function updateRideLocationInSupabase(
     })
     .eq("id", riderId);
 
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(toSupabaseErrorMessage(error.message));
 }
 
 export async function setRideSharingInSupabase(riderId: string, isSharing: boolean) {
   const supabase = getSupabaseAdmin();
   const { error } = await supabase.from("ride_riders").update({ is_sharing: isSharing }).eq("id", riderId);
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(toSupabaseErrorMessage(error.message));
 }
