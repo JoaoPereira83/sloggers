@@ -286,7 +286,7 @@ export function CafeSection() {
 export function JoinSection() {
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
-  const [form, setForm] = useState({ name: "", email: "", experience: "", message: "" });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", experience: "", message: "" });
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -338,6 +338,14 @@ export function JoinSection() {
               type="email"
               value={form.email}
               onChange={(v) => setForm({ ...form, email: v })}
+              required
+            />
+            <JoinInput
+              label="Mobile phone"
+              type="tel"
+              value={form.phone}
+              onChange={(v) => setForm({ ...form, phone: v })}
+              placeholder="07xxx xxxxxx"
               required
             />
             <div className="md:col-span-2">
@@ -414,12 +422,14 @@ function JoinInput({
   onChange,
   type = "text",
   required,
+  placeholder,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   type?: string;
   required?: boolean;
+  placeholder?: string;
 }) {
   return (
     <div>
@@ -431,6 +441,7 @@ function JoinInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         required={required}
+        placeholder={placeholder}
         maxLength={120}
         className="w-full rounded-xl bg-primary-foreground/10 border border-primary-foreground/20 px-4 py-3 text-primary-foreground placeholder:text-primary-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary-glow"
       />

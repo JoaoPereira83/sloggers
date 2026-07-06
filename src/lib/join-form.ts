@@ -10,6 +10,7 @@ const EXPERIENCE_LABELS: Record<string, string> = {
 export type JoinRequest = {
   name: string;
   email: string;
+  phone: string;
   experience: string;
   message: string;
 };
@@ -17,6 +18,7 @@ export type JoinRequest = {
 function normalizeJoinRequest(data: JoinRequest) {
   const name = data.name.trim();
   const email = data.email.trim().toLowerCase();
+  const phone = data.phone.trim();
   const experience = data.experience.trim();
   const message = data.message.trim();
 
@@ -26,6 +28,10 @@ function normalizeJoinRequest(data: JoinRequest) {
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     throw new Error("Please enter a valid email address.");
   }
+  const phoneDigits = phone.replace(/\D/g, "");
+  if (!phone || phoneDigits.length < 10 || phoneDigits.length > 15) {
+    throw new Error("Please enter a valid mobile phone number.");
+  }
   if (!EXPERIENCE_LABELS[experience]) {
     throw new Error("Please select your riding experience.");
   }
@@ -33,7 +39,7 @@ function normalizeJoinRequest(data: JoinRequest) {
     throw new Error("Message is too long.");
   }
 
-  return { name, email, experience, message };
+  return { name, email, phone, experience, message };
 }
 
 function getRecipientEmail() {
@@ -66,6 +72,7 @@ export async function submitJoinForm(data: JoinRequest) {
         _captcha: "false",
         name: request.name,
         email: request.email,
+        phone: request.phone,
         experience: experienceLabel,
         message: request.message || "No extra details provided.",
       }),
