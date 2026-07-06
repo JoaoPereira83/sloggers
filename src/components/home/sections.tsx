@@ -348,7 +348,7 @@ export function JoinSection() {
               placeholder="07xxx xxxxxx"
               required
             />
-            <div className="md:col-span-2">
+            <div>
               <label className="block text-xs uppercase tracking-widest text-primary-glow mb-2">
                 Riding experience
               </label>
