@@ -1,5 +1,3 @@
-import staticGallery from "../../data/gallery.json";
-
 import type { GalleryItem } from "./gallery-types";
 import { isProductionServer, isSupabaseConfigured } from "./ride-db";
 
@@ -14,18 +12,6 @@ async function useSupabaseStore() {
   return import("./gallery-db");
 }
 
-function sortGalleryItems(items: GalleryItem[]) {
-  return [...items].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-  );
-}
-
-function mergeStaticGalleryItems(items: GalleryItem[]) {
-  const seen = new Set(items.map((item) => item.src));
-  const staticItems = (staticGallery.items as GalleryItem[]).filter((item) => !seen.has(item.src));
-  return sortGalleryItems([...items, ...staticItems]);
-}
-
 async function ensureGalleryBackend() {
   if (!isSupabaseConfigured() && isProductionServer()) {
     throw new Error(missingSupabaseMessage);
@@ -35,8 +21,7 @@ async function ensureGalleryBackend() {
 export async function listGalleryItems(): Promise<GalleryItem[]> {
   if (isSupabaseConfigured()) {
     const { listGalleryItemsInSupabase } = await useSupabaseStore();
-    const items = await listGalleryItemsInSupabase();
-    return mergeStaticGalleryItems(items);
+    return listGalleryItemsInSupabase();
   }
 
   const { readGalleryData, sortGalleryItems: sortFileItems } = await useFileStore();
