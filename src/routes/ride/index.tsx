@@ -104,6 +104,9 @@ function RidePage() {
   const isSharing = currentRider?.isSharing ?? false;
   const sharingRiderCount =
     snapshot?.riders.filter((rider) => rider.isSharing).length ?? 0;
+  const sharingRiders = snapshot?.riders.filter((rider) => rider.isSharing) ?? [];
+  const canViewLiveMap = Boolean(isActive || sharingRiderCount > 0);
+  const showRideExplorer = canViewLiveMap || isOnRide;
 
   const invalidateMember = () =>
     queryClient.invalidateQueries({ queryKey: ["member-session"] });
@@ -144,7 +147,6 @@ function RidePage() {
     },
   });
 
-  const isInRideSession = isOnRide || leaveMutation.isPending;
 
   const sharingMutation = useMutation({
     mutationFn: (nextSharing: boolean) => setRideSharing({ data: { isSharing: nextSharing } }),
@@ -330,7 +332,7 @@ function RidePage() {
       <main
         className="mx-auto max-w-6xl px-4 pb-[max(5rem,env(safe-area-inset-bottom))] pt-[calc(5.5rem+env(safe-area-inset-top))] sm:px-6 sm:pb-24 sm:pt-28"
       >
-        <div className={`max-w-3xl ${isInRideSession ? "hidden sm:block" : ""}`}>
+        <div className={`max-w-3xl ${showRideExplorer ? "hidden sm:block" : ""}`}>
           <div className="text-xs font-semibold uppercase tracking-[0.3em] text-primary">
             Live tracking
           </div>
@@ -409,46 +411,43 @@ function RidePage() {
         ) : (
         <>
 
-        {isInRideSession ? (
+        {showRideExplorer ? (
           <div className="mb-4 sm:hidden">
             <h1 className="display text-3xl leading-none">Live ride map</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               {snapshot?.ride?.title ?? DEFAULT_RIDE_TITLE} · {sharingRiderCount} sharing
-              {currentRider ? ` · you are ${currentRider.name}` : ""}
+              {currentRider ? ` · you are ${currentRider.name}` : " · watching"}
             </p>
           </div>
         ) : null}
 
-        <div className={`space-y-4 sm:mt-10 sm:space-y-6 ${isInRideSession ? "mt-4" : "mt-8 sm:mt-10"}`}>
+        <div className={`space-y-4 sm:mt-10 sm:space-y-6 ${showRideExplorer ? "mt-4" : "mt-8 sm:mt-10"}`}>
           <StatusBanner
             rideTitle={snapshot?.ride?.title}
             isActive={isActive}
             riderCount={sharingRiderCount}
           />
 
-          {!isInRideSession ? (
-            <>
-              {sharingRiderCount > 0 ? (
-                <RideMap
-                  riders={snapshot?.riders ?? []}
-                  selectedRiderId={selectedRiderId}
-                  currentRiderId={snapshot?.currentRiderId ?? null}
-                  onSelectRider={setSelectedRiderId}
-                />
-              ) : null}
-              <JoinCard
-                name={name}
-                accountName={member?.displayName}
-                onNameChange={setName}
-                onJoin={() => joinMutation.mutate(name)}
-                isJoining={joinMutation.isPending}
-                error={joinMutation.error instanceof Error ? joinMutation.error.message : null}
-                staleSession={hasStaleSession}
-                othersSharing={sharingRiderCount}
-              />
-            </>
+          {!showRideExplorer ? (
+            <JoinCard
+              name={name}
+              accountName={member?.displayName}
+              onNameChange={setName}
+              onJoin={() => joinMutation.mutate(name)}
+              isJoining={joinMutation.isPending}
+              error={joinMutation.error instanceof Error ? joinMutation.error.message : null}
+              staleSession={hasStaleSession}
+              othersSharing={sharingRiderCount}
+              waitingForRiders
+            />
           ) : (
             <>
+              {!isOnRide ? (
+                <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-foreground/85">
+                  You&apos;re watching the live map. Your location is not being shared.
+                </div>
+              ) : null}
+
               <MobileRideTabs
                 active={mobileTab}
                 onChange={setMobileTab}
@@ -459,7 +458,7 @@ function RidePage() {
               <div className="lg:hidden">
                 {mobileTab === "map" ? (
                   <RideMap
-                    riders={snapshot?.riders ?? []}
+                    riders={sharingRiders}
                     selectedRiderId={selectedRiderId}
                     currentRiderId={snapshot?.currentRiderId ?? null}
                     onSelectRider={handleSelectRider}
@@ -468,7 +467,7 @@ function RidePage() {
 
                 {mobileTab === "group" ? (
                   <RiderList
-                    riders={snapshot?.riders ?? []}
+                    riders={sharingRiders}
                     currentRiderId={snapshot?.currentRiderId ?? null}
                     selectedRiderId={selectedRiderId}
                     onSelectRider={handleSelectRider}
@@ -489,12 +488,46 @@ function RidePage() {
 
                 {mobileTab === "alerts" ? (
                   <div className="space-y-4">
-                    {reportPanel}
+                    {isOnRide ? reportPanel : null}
                     {reportsFeed}
                   </div>
                 ) : null}
 
                 <div className="mt-4">
+                  {isOnRide ? (
+                    <SharingControls
+                      riderName={currentRider?.name ?? member?.displayName ?? null}
+                      isSharing={isSharing}
+                      locationError={locationError}
+                      shareError={
+                        sharingMutation.error instanceof Error ? sharingMutation.error.message : null
+                      }
+                      onToggleSharing={(next) => sharingMutation.mutate(next)}
+                      onLeave={() => leaveMutation.mutate()}
+                      isSharingUpdating={sharingMutation.isPending}
+                      isLeaving={leaveMutation.isPending}
+                    />
+                  ) : (
+                    <JoinCard
+                      name={name}
+                      accountName={member?.displayName}
+                      onNameChange={setName}
+                      onJoin={() => joinMutation.mutate(name)}
+                      isJoining={joinMutation.isPending}
+                      error={joinMutation.error instanceof Error ? joinMutation.error.message : null}
+                      othersSharing={sharingRiderCount}
+                      compact
+                    />
+                  )}
+                </div>
+              </div>
+
+              <div className="hidden space-y-6 lg:block">
+                {!isOnRide ? (
+                  <div className="rounded-2xl border border-primary/20 bg-primary/5 px-5 py-4 text-sm text-foreground/85">
+                    You&apos;re watching the live map. Your location is not being shared.
+                  </div>
+                ) : (
                   <SharingControls
                     riderName={currentRider?.name ?? member?.displayName ?? null}
                     isSharing={isSharing}
@@ -507,24 +540,9 @@ function RidePage() {
                     isSharingUpdating={sharingMutation.isPending}
                     isLeaving={leaveMutation.isPending}
                   />
-                </div>
-              </div>
-
-              <div className="hidden space-y-6 lg:block">
-                <SharingControls
-                  riderName={currentRider?.name ?? member?.displayName ?? null}
-                  isSharing={isSharing}
-                  locationError={locationError}
-                  shareError={
-                    sharingMutation.error instanceof Error ? sharingMutation.error.message : null
-                  }
-                  onToggleSharing={(next) => sharingMutation.mutate(next)}
-                  onLeave={() => leaveMutation.mutate()}
-                  isSharingUpdating={sharingMutation.isPending}
-                  isLeaving={leaveMutation.isPending}
-                />
+                )}
                 <RideMap
-                  riders={snapshot?.riders ?? []}
+                  riders={sharingRiders}
                   selectedRiderId={selectedRiderId}
                   currentRiderId={snapshot?.currentRiderId ?? null}
                   onSelectRider={setSelectedRiderId}
@@ -532,7 +550,7 @@ function RidePage() {
 
                 <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
                   <RiderList
-                    riders={snapshot?.riders ?? []}
+                    riders={sharingRiders}
                     currentRiderId={snapshot?.currentRiderId ?? null}
                     selectedRiderId={selectedRiderId}
                     onSelectRider={setSelectedRiderId}
@@ -548,8 +566,21 @@ function RidePage() {
                   />
                 </div>
 
-                {reportPanel}
+                {isOnRide ? reportPanel : null}
                 {reportsFeed}
+
+                {!isOnRide ? (
+                  <JoinCard
+                    name={name}
+                    accountName={member?.displayName}
+                    onNameChange={setName}
+                    onJoin={() => joinMutation.mutate(name)}
+                    isJoining={joinMutation.isPending}
+                    error={joinMutation.error instanceof Error ? joinMutation.error.message : null}
+                    othersSharing={sharingRiderCount}
+                    compact
+                  />
+                ) : null}
               </div>
             </>
           )}
@@ -654,6 +685,8 @@ function JoinCard({
   error,
   staleSession,
   othersSharing,
+  waitingForRiders = false,
+  compact = false,
 }: {
   name: string;
   accountName?: string;
@@ -663,69 +696,91 @@ function JoinCard({
   error: string | null;
   staleSession?: boolean;
   othersSharing?: number;
+  waitingForRiders?: boolean;
+  compact?: boolean;
 }) {
   const showAccountNameReset =
     accountName && name.trim().toLowerCase() !== accountName.trim().toLowerCase();
 
   return (
     <form
-      className="w-full rounded-2xl border-2 border-primary/25 bg-card p-5 shadow-soft sm:max-w-md sm:rounded-3xl sm:p-8"
+      className={`w-full rounded-2xl border-2 border-primary/25 bg-card shadow-soft sm:max-w-md sm:rounded-3xl ${
+        compact ? "p-4 sm:p-5" : "p-5 sm:p-8"
+      }`}
       onSubmit={(event) => {
         event.preventDefault();
         onJoin();
       }}
     >
-      <h2 className="display text-3xl sm:text-3xl">Share your location</h2>
+      <h2 className={`display ${compact ? "text-2xl" : "text-3xl"}`}>
+        {compact ? "Share your location" : "Share your location"}
+      </h2>
       {staleSession ? (
         <p className="mt-3 rounded-xl border border-primary/20 bg-primary/10 px-4 py-3 text-base leading-relaxed text-foreground">
           Your previous session expired. Tap below to rejoin the live map.
         </p>
+      ) : compact ? (
+        <p className="mt-3 text-base leading-relaxed text-foreground/85 sm:text-sm sm:text-muted-foreground">
+          Join the ride map when you want other riders to see you. You can keep watching without
+          sharing your location.
+        </p>
+      ) : waitingForRiders ? (
+        <p className="mt-3 text-base leading-relaxed text-foreground/85 sm:text-sm sm:text-muted-foreground">
+          When the first rider shares their location, the live map will appear here automatically.
+          You can watch without sharing yours.
+        </p>
       ) : (
         <p className="mt-3 text-base leading-relaxed text-foreground/85 sm:text-sm sm:text-muted-foreground">
           {othersSharing
-            ? `${othersSharing} rider${othersSharing === 1 ? " is" : "s are"} already sharing. Join them on the map.`
-            : "Tap below to start sharing your location with other approved Sloggers on today's ride."}
+            ? `${othersSharing} rider${othersSharing === 1 ? " is" : "s are"} already sharing. Join when you want to appear on the map.`
+            : "Join the ride map when you're ready to share your location with other approved Sloggers."}
           {" "}Names must be unique — add an initial or nickname if yours is taken.
         </p>
       )}
-      <label
-        htmlFor="ride-join-name"
-        className="mt-6 block text-sm font-semibold uppercase tracking-widest text-foreground/80"
-      >
-        Your name on the map
-      </label>
-      <p className="mt-1 text-xs text-muted-foreground">
-        {accountName
-          ? `Defaults to ${accountName} from your account — change it if you use a different nickname on rides.`
-          : "Enter the name other riders will see on the map."}
-      </p>
-      <input
-        id="ride-join-name"
-        value={name}
-        onChange={(event) => onNameChange(event.target.value)}
-        placeholder={accountName ?? "e.g. Joao, Blue, Sarah B"}
-        required
-        autoComplete="name"
-        className="mt-2 w-full rounded-xl border-2 border-input bg-background px-4 py-3.5 text-base text-foreground placeholder:text-foreground/45"
-      />
-      {showAccountNameReset ? (
-        <button
-          type="button"
-          onClick={() => onNameChange(accountName)}
-          className="mt-2 text-sm font-medium text-primary hover:underline"
-        >
-          Use account name ({accountName})
-        </button>
+      {!waitingForRiders ? (
+        <>
+          <label
+            htmlFor="ride-join-name"
+            className="mt-6 block text-sm font-semibold uppercase tracking-widest text-foreground/80"
+          >
+            Your name on the map
+          </label>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {accountName
+              ? `Defaults to ${accountName} from your account — change it if you use a different nickname on rides.`
+              : "Enter the name other riders will see on the map."}
+          </p>
+          <input
+            id="ride-join-name"
+            value={name}
+            onChange={(event) => onNameChange(event.target.value)}
+            placeholder={accountName ?? "e.g. Joao, Blue, Sarah B"}
+            required
+            autoComplete="name"
+            className="mt-2 w-full rounded-xl border-2 border-input bg-background px-4 py-3.5 text-base text-foreground placeholder:text-foreground/45"
+          />
+          {showAccountNameReset ? (
+            <button
+              type="button"
+              onClick={() => onNameChange(accountName)}
+              className="mt-2 text-sm font-medium text-primary hover:underline"
+            >
+              Use account name ({accountName})
+            </button>
+          ) : null}
+        </>
       ) : null}
       {error ? <p className="mt-3 text-base text-destructive">{error}</p> : null}
-      <button
-        type="submit"
-        disabled={isJoining || !name.trim()}
-        className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-3.5 text-base font-semibold uppercase tracking-wider text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-11 sm:w-auto sm:text-sm"
-      >
-        {isJoining ? <Loader2 className="h-5 w-5 animate-spin" /> : <MapPin className="h-5 w-5" />}
-        Join and share location
-      </button>
+      {!waitingForRiders ? (
+        <button
+          type="submit"
+          disabled={isJoining || !name.trim()}
+          className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-3.5 text-base font-semibold uppercase tracking-wider text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-11 sm:w-auto sm:text-sm"
+        >
+          {isJoining ? <Loader2 className="h-5 w-5 animate-spin" /> : <MapPin className="h-5 w-5" />}
+          Join ride map
+        </button>
+      ) : null}
     </form>
   );
 }
@@ -800,8 +855,8 @@ function SharingControls({
         </p>
       ) : (
         <p className="w-full text-base leading-relaxed text-foreground/80 sm:text-sm sm:text-muted-foreground">
-          Tap the purple button above to turn on location sharing. Your phone will ask for location
-          permission the first time.
+          You&apos;re on the ride map but not sharing your location. Turn sharing on when you want
+          riders to see you — or keep watching everyone else without broadcasting.
         </p>
       )}
     </div>
